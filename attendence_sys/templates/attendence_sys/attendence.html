@@ -1,95 +1,169 @@
 {% extends 'attendence_sys/main.html' %}
+{% load static %}
+
+{% block title %}Attendance Records | Face Attendance System{% endblock %}
+
 {% block content %}
-{% for message in messages %}
-        {% if message.tags == 'error' %}
-            <div class="alert alert-danger">
-                {{ message }}
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="font-weight-bold text-dark mb-1">
+            <i class="fas fa-clipboard-list text-primary mr-2"></i> Attendance Records & History
+        </h2>
+        <p class="text-muted mb-0">
+            View, filter, and inspect historical attendance sessions. Click "Edit Session" on any record to make manual adjustments.
+        </p>
+    </div>
+    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary font-weight-bold mr-2" style="border-radius: 10px;">
+            <i class="fas fa-camera mr-1"></i> Take Attendance (AI)
+        </a>
+        <button class="btn btn-outline-secondary font-weight-bold" onclick="window.print()" style="border-radius: 10px;">
+            <i class="fas fa-print mr-1"></i> Print
+        </button>
+    </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card p-3">
+            <div>
+                <div class="stat-label">Total Records</div>
+                <div class="h4 font-weight-bold mb-0 text-dark">{{ total_count }}</div>
             </div>
+            <i class="fas fa-list-check text-primary fa-lg"></i>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card p-3">
+            <div>
+                <div class="stat-label">Present Count</div>
+                <div class="h4 font-weight-bold mb-0 text-success">{{ present_count }}</div>
+            </div>
+            <i class="fas fa-circle-check text-success fa-lg"></i>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card p-3">
+            <div>
+                <div class="stat-label">Absent Count</div>
+                <div class="h4 font-weight-bold mb-0 text-danger">{{ absent_count }}</div>
+            </div>
+            <i class="fas fa-circle-xmark text-danger fa-lg"></i>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card p-3">
+            <div>
+                <div class="stat-label">Attendance Rate</div>
+                <div class="h4 font-weight-bold mb-0 {% if attendance_percentage >= 75 %}text-success{% else %}text-warning{% endif %}">{{ attendance_percentage }}%</div>
+            </div>
+            <i class="fas fa-percent text-warning fa-lg"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filter Card -->
+<div class="card-modern mb-4">
+    <div class="card-header-modern bg-light py-2">
+        <span class="small font-weight-bold text-dark"><i class="fas fa-filter text-primary mr-1"></i> Filter Records</span>
+    </div>
+    <div class="card-body-modern py-3">
+        <form method="GET" class="form-row align-items-end">
+            {% for field in myFilter.form %}
+            <div class="col-md-2 col-sm-4 col-6 mb-2">
+                <label class="small font-weight-bold text-dark mb-1">{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+            <div class="col-md-2 col-sm-4 col-12 mb-2">
+                <button class="btn btn-modern-primary btn-block" type="submit">
+                    <i class="fas fa-magnifying-glass mr-1"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Attendance Table -->
+<div class="card-modern mb-5">
+    <div class="card-header-modern bg-white">
+        <span class="font-weight-bold text-dark">
+            Attendance Log Entries ({{ attendences|length }})
+        </span>
+    </div>
+    <div class="card-body-modern p-0">
+        {% if attendences %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.94rem;">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Student ID</th>
+                        <th>Branch</th>
+                        <th>Year</th>
+                        <th>Section</th>
+                        <th>Period</th>
+                        <th>Status</th>
+                        <th class="text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in attendences %}
+                    <tr>
+                        <td class="font-weight-bold text-dark">
+                            {{ item.date|default:"-" }}
+                        </td>
+                        <td class="font-weight-bold text-primary">
+                            {{ item.Student_ID }}
+                        </td>
+                        <td><span class="badge badge-primary px-2 py-1">{{ item.branch }}</span></td>
+                        <td>Year {{ item.year }}</td>
+                        <td>Section {{ item.section }}</td>
+                        <td><span class="badge badge-info px-2 py-1">Period {{ item.period }}</span></td>
+                        <td>
+                            {% if item.status == 'Present' %}
+                                <span class="badge-present">
+                                    <i class="fas fa-check"></i> Present
+                                </span>
+                            {% else %}
+                                <span class="badge-absent">
+                                    <i class="fas fa-xmark"></i> Absent
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <a href="{% url 'edit_attendance' %}?branch={{ item.branch }}&year={{ item.year }}&section={{ item.section }}&period={{ item.period }}&date={{ item.date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-warning text-dark font-weight-bold" style="border-radius: 6px;">
+                                <i class="fas fa-pen-to-square mr-1"></i> Edit Session
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-            <div class="alert alert-success">
-                {{ message }}
-            </div>
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-clipboard-question fa-3x mb-3 text-gray-300"></i>
+            <h5 class="font-weight-bold text-dark mb-1">No Attendance Records Found</h5>
+            <p class="small text-muted mb-3">No attendance data matches the applied filters.</p>
+            <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary">Take Attendance Now</a>
+        </div>
         {% endif %}
-	{% endfor %}
-{% if ta == False %}
-<center><h1>Search Attendence</h1></center>
-<div class="row">
-	<div class="col">
-		<div class="card card-body">
-
-			<center>
-				<form method="get">
-					{{myFilter.form}}
-
-		    		<button class="btn btn-primary" type="submit">Search</button>
-				</form>
-			</center>
-		</div>
-	</div>
+    </div>
 </div>
-<br>
+{% endblock %}
 
-<div class="row">
-	<div class="col-sm-12">
-		<div class="card card-body">
-			<table class="table table-sm">
-				<tr>
-					<th>Student ID</th>
-					<th>Branch</th>
-					<th>Year</th>
-					<th>Section</th>
-					<th>Period</th>
-					<th>Status</th>
-				</tr>
-
-				{% for attendence in attendences %}
-
-				<tr>
-                    <td>{{ attendence.Student_ID }}</td>
-					<td>{{ attendence.branch }}</td>
-					<td>{{ attendence.year }}</td>
-					<td>{{ attendence.section }}</td>
-					<td>{{ attendence.period }}</td>
-					<td>{{ attendence.status }}</td>
-				</tr>
-				{% endfor %}
-
-			</table>
-		</div>
-	</div>
-</div>
-{% else %}
-	<center><h1>Present Period Attendence</h1></center>
-	<div class="row">
-		<div class="col-sm-12">
-			<div class="card card-body">
-				<table class="table table-sm">
-					<tr>
-						<th>Student ID</th>
-						<th>Branch</th>
-						<th>Year</th>
-						<th>Section</th>
-						<th>Period</th>
-						<th>Status</th>
-					</tr>
-	
-					{% for attendence in attendences %}
-	
-					<tr>
-						<td>{{ attendence.Student_ID }}</td>
-						<td>{{ attendence.branch }}</td>
-						<td>{{ attendence.year }}</td>
-						<td>{{ attendence.section }}</td>
-						<td>{{ attendence.period }}</td>
-						<td>{{ attendence.status }}</td>
-					</tr>
-					{% endfor %}
-	
-				</table>
-			</div>
-		</div>
-	</div>
-{% endif %}
-
-
+{% block extra_js %}
+<script>
+// Style filter inputs automatically
+document.addEventListener("DOMContentLoaded", function() {
+    var inputs = document.querySelectorAll("form input, form select");
+    inputs.forEach(function(el) {
+        if (!el.classList.contains('form-control-modern') && !el.classList.contains('btn')) {
+            el.classList.add('form-control', 'form-control-modern', 'form-control-sm');
+        }
+    });
+});
+</script>
 {% endblock %}

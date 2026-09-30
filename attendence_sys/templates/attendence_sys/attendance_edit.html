@@ -1,0 +1,276 @@
+{% extends 'attendence_sys/main.html' %}
+{% load static %}
+
+{% block title %}Edit Attendance | Face Attendance System{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="font-weight-bold text-dark mb-1">
+            <i class="fas fa-user-pen text-warning mr-2"></i> Edit Attendance Records
+        </h2>
+        <p class="text-muted mb-0">
+            Select a class, period, and date to edit student attendance. Manually toggle between Present and Absent with 1-click controls.
+        </p>
+    </div>
+    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary font-weight-bold" style="border-radius: 10px;">
+            <i class="fas fa-camera mr-1"></i> Take Attendance (AI)
+        </a>
+    </div>
+</div>
+
+<!-- Class & Session Selector Filter -->
+<div class="card-modern mb-4">
+    <div class="card-header-modern bg-light">
+        <span><i class="fas fa-filter text-primary mr-2"></i> Select Class & Session to Edit</span>
+    </div>
+    <div class="card-body-modern">
+        <form method="GET" action="{% url 'edit_attendance' %}">
+            <div class="row">
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <label class="font-weight-bold text-dark small">Branch</label>
+                    <select name="branch" class="form-control form-control-modern" required>
+                        {% for b in branches %}
+                            <option value="{{ b }}" {% if selected_branch == b %}selected{% endif %}>{{ b }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-6 mb-3">
+                    <label class="font-weight-bold text-dark small">Year</label>
+                    <select name="year" class="form-control form-control-modern" required>
+                        {% for y in years %}
+                            <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>Year {{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-6 mb-3">
+                    <label class="font-weight-bold text-dark small">Section</label>
+                    <select name="section" class="form-control form-control-modern" required>
+                        {% for sec in sections %}
+                            <option value="{{ sec }}" {% if selected_section == sec %}selected{% endif %}>Section {{ sec }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-6 mb-3">
+                    <label class="font-weight-bold text-dark small">Period</label>
+                    <select name="period" class="form-control form-control-modern" required>
+                        {% for p in periods %}
+                            <option value="{{ p }}" {% if selected_period == p %}selected{% endif %}>Period {{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3 col-sm-12 mb-3">
+                    <label class="font-weight-bold text-dark small">Date</label>
+                    <div class="input-group">
+                        <input type="date" name="date" class="form-control form-control-modern" value="{{ selected_date }}" required>
+                        <div class="input-group-append">
+                            <button type="submit" class="btn btn-primary px-3" style="border-top-right-radius: 10px; border-bottom-right-radius: 10px;">
+                                <i class="fas fa-search mr-1"></i> Load
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Attendance Roster Edit Table -->
+{% if roster %}
+<form method="POST" action="{% url 'edit_attendance' %}" id="editAttendanceForm">
+    {% csrf_token %}
+    <input type="hidden" name="save_edits" value="1">
+    <input type="hidden" name="branch" value="{{ selected_branch }}">
+    <input type="hidden" name="year" value="{{ selected_year }}">
+    <input type="hidden" name="section" value="{{ selected_section }}">
+    <input type="hidden" name="period" value="{{ selected_period }}">
+    <input type="hidden" name="date" value="{{ selected_date }}">
+
+    <div class="card-modern mb-5">
+        <div class="card-header-modern bg-white d-flex justify-content-between align-items-center flex-wrap" style="gap: 12px;">
+            <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
+                <span class="font-weight-bold">
+                    {{ selected_branch }} Year {{ selected_year }}-{{ selected_section }} &bull; Period {{ selected_period }} &bull; {{ selected_date }}
+                </span>
+                {% if not has_records %}
+                    <span class="badge badge-secondary font-weight-normal">Initial roster loaded</span>
+                {% else %}
+                    <span class="badge badge-success font-weight-normal">Existing Records Loaded</span>
+                {% endif %}
+            </div>
+            <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="setAllStatus('Present')">
+                    <i class="fas fa-check-double mr-1"></i> Mark All Present
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="setAllStatus('Absent')">
+                    <i class="fas fa-xmark mr-1"></i> Mark All Absent
+                </button>
+                <button type="submit" class="btn btn-sm btn-modern-success px-3 font-weight-bold ml-md-2" style="cursor: pointer; z-index: 10;">
+                    <i class="fas fa-floppy-disk mr-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body-modern">
+            <!-- Summary Counts -->
+            <div class="row mb-4">
+                <div class="col-md-4 col-12 mb-2">
+                    <div class="stat-card p-3">
+                        <div>
+                            <div class="stat-label">Total Students</div>
+                            <div class="h4 font-weight-bold mb-0 text-dark">{{ total_students }}</div>
+                        </div>
+                        <i class="fas fa-users text-primary fa-lg"></i>
+                    </div>
+                </div>
+                <div class="col-md-4 col-6 mb-2">
+                    <div class="stat-card p-3">
+                        <div>
+                            <div class="stat-label">Present</div>
+                            <div class="h4 font-weight-bold mb-0 text-success" id="displayPresent">{{ present_count }}</div>
+                        </div>
+                        <i class="fas fa-circle-check text-success fa-lg"></i>
+                    </div>
+                </div>
+                <div class="col-md-4 col-6 mb-2">
+                    <div class="stat-card p-3">
+                        <div>
+                            <div class="stat-label">Absent</div>
+                            <div class="h4 font-weight-bold mb-0 text-danger" id="displayAbsent">{{ absent_count }}</div>
+                        </div>
+                        <i class="fas fa-circle-xmark text-danger fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle" style="font-size: 0.95rem;">
+                    <thead class="thead-light">
+                        <tr>
+                            <th style="width: 70px;">Photo</th>
+                            <th>Registration ID</th>
+                            <th>Student Name</th>
+                            <th class="text-center" style="width: 140px;">Current Status</th>
+                            <th class="text-center" style="width: 180px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in roster %}
+                        <tr id="row_{{ row.student.register_number|default:row.student.registration_id }}">
+                            <input type="hidden" name="student_id" value="{{ row.student.register_number|default:row.student.registration_id }}">
+                            <input type="hidden" name="status_{{ row.student.register_number|default:row.student.registration_id }}" id="status_input_{{ row.student.register_number|default:row.student.registration_id }}" value="{{ row.status }}">
+
+                            <td>
+                                <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
+                            </td>
+                            <td class="font-weight-bold text-dark">
+                                {{ row.student.register_number|default:row.student.registration_id }}
+                            </td>
+                            <td class="font-weight-bold">
+                                {{ row.student.name|default:row.student.firstname|default:"Student" }}
+                            </td>
+                            <td class="text-center">
+                                <span id="badge_{{ row.student.register_number|default:row.student.registration_id }}" class="{% if row.status == 'Present' %}badge-present{% else %}badge-absent{% endif %}">
+                                    <i class="fas {% if row.status == 'Present' %}fa-check{% else %}fa-xmark{% endif %}"></i>
+                                    <span>{{ row.status }}</span>
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold px-3" style="border-radius: 20px;" onclick="toggleStudentStatus('{{ row.student.register_number|default:row.student.registration_id }}')">
+                                    <i class="fas fa-arrows-rotate mr-1"></i> Toggle Status
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 pt-3 border-top d-flex align-items-center justify-content-between flex-wrap" style="gap: 12px;">
+                <span class="text-muted small">
+                    Click "Toggle Status" to flip any student between Present and Absent, then click Save Changes.
+                </span>
+                <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm" style="cursor: pointer; z-index: 10;">
+                    <i class="fas fa-floppy-disk mr-2"></i> Save Changes to Database
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% else %}
+<div class="card-modern text-center py-5">
+    <div class="py-4">
+        <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+        <h5 class="font-weight-bold text-dark mb-1">No Students Found for this Class</h5>
+        <p class="text-muted small mb-3">Please check your Branch, Year, and Section filters or enroll students first.</p>
+        <a href="{% url 'add_student' %}" class="btn btn-modern-primary">Add Students Now</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleStudentStatus(regId) {
+    var input = document.getElementById('status_input_' + regId);
+    var badge = document.getElementById('badge_' + regId);
+    if (!input || !badge) return;
+
+    var current = input.value;
+    var nextStatus = (current === 'Present') ? 'Absent' : 'Present';
+    input.value = nextStatus;
+
+    if (nextStatus === 'Present') {
+        badge.className = 'badge-present';
+        badge.innerHTML = '<i class="fas fa-check"></i> <span>Present</span>';
+    } else {
+        badge.className = 'badge-absent';
+        badge.innerHTML = '<i class="fas fa-xmark"></i> <span>Absent</span>';
+    }
+
+    updateCounters();
+}
+
+function setAllStatus(targetStatus) {
+    var inputs = document.querySelectorAll("input[id^='status_input_']");
+    inputs.forEach(function(input) {
+        var regId = input.id.replace('status_input_', '');
+        input.value = targetStatus;
+        var badge = document.getElementById('badge_' + regId);
+        if (badge) {
+            if (targetStatus === 'Present') {
+                badge.className = 'badge-present';
+                badge.innerHTML = '<i class="fas fa-check"></i> <span>Present</span>';
+            } else {
+                badge.className = 'badge-absent';
+                badge.innerHTML = '<i class="fas fa-xmark"></i> <span>Absent</span>';
+            }
+        }
+    });
+    updateCounters();
+}
+
+function updateCounters() {
+    var inputs = document.querySelectorAll("input[id^='status_input_']");
+    var p = 0;
+    var a = 0;
+    inputs.forEach(function(input) {
+        if (input.value === 'Present') {
+            p++;
+        } else {
+            a++;
+        }
+    });
+    var dispP = document.getElementById('displayPresent');
+    var dispA = document.getElementById('displayAbsent');
+    if (dispP) dispP.innerText = p;
+    if (dispA) dispA.innerText = a;
+}
+</script>
+{% endblock %}

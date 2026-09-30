@@ -1,0 +1,264 @@
+{% extends 'attendence_sys/main.html' %}
+{% load static %}
+
+{% block title %}Student Directory | Face Attendance System{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="font-weight-bold text-dark mb-1">
+            <i class="fas fa-users text-primary mr-2"></i> Enrolled Student Directory
+        </h2>
+        <p class="text-muted mb-0">
+            Browse, search, edit, and delete enrolled students across branches, years, and sections.
+        </p>
+    </div>
+    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+        <a href="{% url 'add_student' %}" class="btn btn-modern-success font-weight-bold" style="border-radius: 10px;">
+            <i class="fas fa-user-plus mr-1"></i> Add / Import Students
+        </a>
+    </div>
+</div>
+
+<!-- Search & Filter Card -->
+<div class="card-modern mb-4">
+    <div class="card-body-modern py-3">
+        <form method="GET" action="{% url 'student_directory' %}" class="row align-items-end">
+            <div class="col-md-4 mb-2 mb-md-0">
+                <label class="small font-weight-bold text-dark mb-1">Search Student</label>
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-white border-right-0"><i class="fas fa-magnifying-glass text-muted"></i></span>
+                    </div>
+                    <input type="text" name="q" class="form-control form-control-modern border-left-0" placeholder="Name or Registration ID..." value="{{ search_query }}">
+                </div>
+            </div>
+
+            <div class="col-md-2 col-4 mb-2 mb-md-0">
+                <label class="small font-weight-bold text-dark mb-1">Branch</label>
+                <select name="branch" class="form-control form-control-modern">
+                    <option value="">All</option>
+                    {% for b in branches %}
+                        <option value="{{ b }}" {% if selected_branch == b %}selected{% endif %}>{{ b }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 col-4 mb-2 mb-md-0">
+                <label class="small font-weight-bold text-dark mb-1">Year</label>
+                <select name="year" class="form-control form-control-modern">
+                    <option value="">All</option>
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>Year {{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 col-4 mb-2 mb-md-0">
+                <label class="small font-weight-bold text-dark mb-1">Section</label>
+                <select name="section" class="form-control form-control-modern">
+                    <option value="">All</option>
+                    {% for sec in sections %}
+                        <option value="{{ sec }}" {% if selected_section == sec %}selected{% endif %}>Sec {{ sec }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 col-12 text-right">
+                <button type="submit" class="btn btn-modern-primary btn-block">
+                    <i class="fas fa-filter mr-1"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Student List Table with Bulk Delete -->
+<form method="POST" action="{% url 'bulk_delete_students' %}" id="bulkDeleteForm">
+    {% csrf_token %}
+    <div class="card-modern mb-5">
+        <div class="card-header-modern bg-white">
+            <div class="d-flex align-items-center">
+                <span class="font-weight-bold text-dark mr-3">
+                    Total Students: <span class="badge badge-primary px-2 py-1 ml-1">{{ total_count }}</span>
+                </span>
+                <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" id="bulkDeleteBtn" style="border-radius: 8px; display: none;" onclick="confirmBulkDelete()">
+                    <i class="fas fa-trash-can mr-1"></i> Delete Selected (<span id="selectedCount">0</span>)
+                </button>
+            </div>
+            <div>
+                <a href="{% url 'download_excel_template' %}" class="btn btn-sm btn-outline-success font-weight-bold" style="border-radius: 8px;">
+                    <i class="fas fa-file-excel mr-1"></i> Excel Template
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body-modern p-0">
+            {% if students %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.94rem;">
+                    <thead class="thead-light">
+                        <tr>
+                            <th style="width: 40px;" class="text-center">
+                                <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
+                            </th>
+                            <th style="width: 70px;">Photo</th>
+                            <th>Registration ID</th>
+                            <th>Student Name</th>
+                            <th>Class</th>
+                            <th>Contact</th>
+                            <th class="text-center">Photo Status</th>
+                            <th class="text-right" style="width: 180px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in students %}
+                        <tr>
+                            <td class="text-center">
+                                <input type="checkbox" name="selected_students" value="{{ s.id }}" class="student-select-cb" onclick="updateSelection()">
+                            </td>
+                            <td>
+                                <img src="{{ s.get_primary_photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
+                            </td>
+                            <td class="font-weight-bold text-dark">
+                                {{ s.register_number|default:s.registration_id|default:"-" }}
+                            </td>
+                            <td class="font-weight-bold">
+                                {{ s.name|default:s.firstname|default:"Student" }}
+                            </td>
+                            <td>
+                                <span class="badge badge-primary px-2 py-1 mr-1">{{ s.branch|default:s.department }}</span>
+                                <span class="text-muted">Yr {{ s.year }} &bull; Sec {{ s.section }}</span>
+                            </td>
+                            <td>
+                                <div class="small">
+                                    {% if s.email %}<i class="fas fa-envelope mr-1 text-muted"></i> {{ s.email }}<br>{% endif %}
+                                    {% if s.phone %}<i class="fas fa-phone mr-1 text-muted"></i> {{ s.phone }}{% endif %}
+                                    {% if not s.email and not s.phone %}<span class="text-muted">-</span>{% endif %}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                {% if s.profile_pic or s.photos.exists %}
+                                    <span class="badge badge-success px-2 py-1"><i class="fas fa-check mr-1"></i> Enrolled</span>
+                                {% else %}
+                                    <span class="badge badge-warning px-2 py-1"><i class="fas fa-xmark mr-1"></i> Missing</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-right">
+                                <a href="{% url 'edit_student' student_id=s.id %}" class="btn btn-sm btn-outline-primary font-weight-bold mr-1" style="border-radius: 6px;">
+                                    <i class="fas fa-pencil mr-1"></i> Edit
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" style="border-radius: 6px;" onclick="confirmDeleteStudent('{{ s.id }}', '{{ s.name|default:s.register_number|default:s.registration_id|escapejs }}')">
+                                    <i class="fas fa-trash-can mr-1"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-user-slash fa-3x mb-3 text-gray-300"></i>
+                <h5 class="font-weight-bold text-dark mb-1">No Students Match Your Query</h5>
+                <p class="small text-muted mb-3">Try adjusting your search criteria or add new students.</p>
+                <a href="{% url 'add_student' %}" class="btn btn-modern-success">Add Students Now</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<!-- Single Delete Confirmation Modal -->
+<div class="modal fade" id="deleteStudentModal" tabindex="-1" role="dialog" aria-labelledby="deleteStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title font-weight-bold text-danger" id="deleteStudentModalLabel">
+                    <i class="fas fa-triangle-exclamation mr-2"></i> Delete Student
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-1">Are you sure you want to delete <strong id="deleteStudentNameText" class="text-dark"></strong> from the database?</p>
+                <p class="small text-muted mb-0">This action will remove their student record, enrolled photos, and biometric face recognition embeddings.</p>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-secondary font-weight-bold" data-dismiss="modal" style="border-radius: 8px;">Cancel</button>
+                <a href="#" id="confirmDeleteLink" class="btn btn-danger font-weight-bold shadow-sm" style="border-radius: 8px;">
+                    <i class="fas fa-trash-can mr-1"></i> Yes, Delete Student
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title font-weight-bold text-danger">
+                    <i class="fas fa-triangle-exclamation mr-2"></i> Delete Selected Students
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-1">Are you sure you want to delete the <strong id="bulkDeleteCountText" class="text-danger"></strong> selected students?</p>
+                <p class="small text-muted mb-0">All their data, photos, and face embeddings will be permanently removed.</p>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-secondary font-weight-bold" data-dismiss="modal" style="border-radius: 8px;">Cancel</button>
+                <button type="button" class="btn btn-danger font-weight-bold shadow-sm" style="border-radius: 8px;" onclick="submitBulkDelete()">
+                    <i class="fas fa-trash-can mr-1"></i> Yes, Delete All Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDeleteStudent(studentId, studentName) {
+    document.getElementById('deleteStudentNameText').innerText = studentName;
+    document.getElementById('confirmDeleteLink').href = "/students/" + studentId + "/delete/";
+    $('#deleteStudentModal').modal('show');
+}
+
+function toggleSelectAll(selectAllCheckbox) {
+    var checkboxes = document.querySelectorAll('.student-select-cb');
+    checkboxes.forEach(function(cb) {
+        cb.checked = selectAllCheckbox.checked;
+    });
+    updateSelection();
+}
+
+function updateSelection() {
+    var checked = document.querySelectorAll('.student-select-cb:checked');
+    var bulkBtn = document.getElementById('bulkDeleteBtn');
+    var countSpan = document.getElementById('selectedCount');
+    countSpan.innerText = checked.length;
+    if (checked.length > 0) {
+        bulkBtn.style.display = 'inline-block';
+    } else {
+        bulkBtn.style.display = 'none';
+    }
+}
+
+function confirmBulkDelete() {
+    var checked = document.querySelectorAll('.student-select-cb:checked');
+    if (checked.length === 0) return;
+    document.getElementById('bulkDeleteCountText').innerText = checked.length;
+    $('#bulkDeleteModal').modal('show');
+}
+
+function submitBulkDelete() {
+    document.getElementById('bulkDeleteForm').submit();
+}
+</script>
+{% endblock %}

@@ -1,36 +1,160 @@
 {% extends 'attendence_sys/main.html' %}
-{% block content %}
+{% load static %}
 
-<style>
-	.profile-pic{
-		max-width: 200px;
-		max-height:200px;
-		margin: 0 auto;
-		border-radius: 50%;
-	}
-</style>
-    <div class="container">
-        <div class="row">
-            <div class="col-md-3">
-                <div class="card card-body">
-                    <a class="btn btn-warning" href="{% url 'home' %}"> &#8592; Back to Home</a>
-                    <hr>
-                    <h3 style="text-align: center">Student Profile Pic</h3>
-                    <hr>
-                    <img class="img-responsive profile-pic" src="{{ student.profile_pic.url }}" >
-                </div>
+{% block title %}Update Student | Face Attendance System{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="font-weight-bold text-dark mb-1">
+            <i class="fas fa-user-pen text-primary mr-2"></i> Update Student Details
+        </h2>
+        <p class="text-muted mb-0">Modify enrolled student registration profile, ID, contact, and photo.</p>
+    </div>
+    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+        <a class="btn btn-outline-secondary font-weight-bold" href="{% url 'student_directory' %}" style="border-radius: 10px;">
+            <i class="fas fa-arrow-left mr-1"></i> Back to Directory
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4 mb-4">
+        <div class="card-modern text-center p-4">
+            <div class="mb-3">
+                <img src="{{ student.get_primary_photo_url }}" alt="avatar" class="rounded-circle shadow-sm" style="width: 140px; height: 140px; object-fit: cover; border: 3px solid #0284c7;" onerror="this.src='/static/images/default_avatar.png'">
             </div>
-            <div class="col-md-9">
-                <form action="{% url 'updateStudent' %}" method="POST" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="form-group" style="visibility: hidden !important;margin-top: -40px;">
-                        <input type="text" class="form-control" value="{{ prev_reg_id }}" name="prev_reg_id">
-                    </div>
-                    {{ form.as_p }}
-                    <input class="btn btn-primary" type="submit" name="Update Information">
-                </form>
+            <h5 class="font-weight-bold text-dark mb-1">{{ student.name|default:student.registration_id|default:"Student" }}</h5>
+            <div class="text-muted small mb-2">ID: {{ student.register_number|default:student.registration_id|default:"Not Assigned" }}</div>
+            <span class="badge badge-primary px-3 py-1 font-weight-bold">{{ student.branch|default:student.department }} &bull; Yr {{ student.year }}-{{ student.section }}</span>
+
+            <hr class="my-4">
+
+            <!-- Danger Zone: Delete Student Button -->
+            <div class="text-center">
+                <p class="small text-danger mb-2 font-weight-bold">
+                    <i class="fas fa-triangle-exclamation mr-1"></i> Danger Zone
+                </p>
+                <button type="button" class="btn btn-outline-danger btn-block font-weight-bold" style="border-radius: 8px;" onclick="$('#deleteSingleModal').modal('show');">
+                    <i class="fas fa-trash-can mr-1"></i> Delete This Student
+                </button>
             </div>
         </div>
     </div>
 
+    <div class="col-lg-8">
+        <div class="card-modern mb-5">
+            <div class="card-header-modern bg-white">
+                <span class="font-weight-bold"><i class="fas fa-id-card text-primary mr-2"></i> Edit Student Profile Information</span>
+            </div>
+            <div class="card-body-modern">
+                <form action="{% url 'edit_student' student_id=student.id %}" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="font-weight-bold small text-dark">Registration ID / Roll Number <span class="text-danger">*</span></label>
+                        <input type="text" name="registration_id" class="form-control form-control-modern" value="{{ student.register_number|default:student.registration_id|default:'' }}" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold small text-dark">First Name</label>
+                            <input type="text" name="firstname" class="form-control form-control-modern" value="{{ student.firstname|default:'' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold small text-dark">Last Name</label>
+                            <input type="text" name="lastname" class="form-control form-control-modern" value="{{ student.lastname|default:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold small text-dark">Branch</label>
+                            <select name="branch" class="form-control form-control-modern">
+                                {% for b in student.BRANCH %}
+                                    <option value="{{ b.0 }}" {% if student.branch == b.0 %}selected{% endif %}>{{ b.1 }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold small text-dark">Year</label>
+                            <select name="year" class="form-control form-control-modern">
+                                {% for y in student.YEAR %}
+                                    <option value="{{ y.0 }}" {% if student.year == y.0 %}selected{% endif %}>Year {{ y.1 }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold small text-dark">Section</label>
+                            <select name="section" class="form-control form-control-modern">
+                                {% for s in student.SECTION %}
+                                    <option value="{{ s.0 }}" {% if student.section == s.0 %}selected{% endif %}>Section {{ s.1 }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold small text-dark">Email</label>
+                            <input type="email" name="email" class="form-control form-control-modern" value="{{ student.email|default:'' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold small text-dark">Phone</label>
+                            <input type="text" name="phone" class="form-control form-control-modern" value="{{ student.phone|default:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="p-3 border rounded bg-light my-3">
+                        <label class="font-weight-bold small text-dark mb-1">
+                            <i class="fab fa-google-drive text-primary mr-1"></i> Update with Google Drive Photo Link:
+                        </label>
+                        <input type="url" name="drive_link" class="form-control form-control-modern" placeholder="https://drive.google.com/file/d/YOUR_FILE_ID/view?usp=sharing">
+                        <small class="text-muted d-block mt-1">If provided, the image will be downloaded and attached as the new profile picture.</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="font-weight-bold small text-dark mb-1">Or Upload New Image File:</label>
+                        <input type="file" name="profile_pic" class="form-control-file" accept="image/*">
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between pt-2 flex-wrap" style="gap: 12px;">
+                        <a href="{% url 'student_directory' %}" class="btn btn-outline-secondary font-weight-bold px-4 py-2" style="border-radius: 8px;">
+                            Cancel
+                        </a>
+                        <button class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm" type="submit" style="border-radius: 8px; cursor: pointer; z-index: 10;">
+                            <i class="fas fa-floppy-disk mr-1"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Delete Confirmation -->
+<div class="modal fade" id="deleteSingleModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title font-weight-bold text-danger">
+                    <i class="fas fa-triangle-exclamation mr-2"></i> Delete Student
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-1">Are you sure you want to permanently delete <strong>{{ student.name|default:student.register_number }}</strong>?</p>
+                <p class="small text-muted mb-0">This will remove this student's profile, enrolled photos, and biometric face recognition data from the system.</p>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-secondary font-weight-bold" data-dismiss="modal" style="border-radius: 8px;">Cancel</button>
+                <a href="{% url 'delete_student' student_id=student.id %}" class="btn btn-danger font-weight-bold shadow-sm" style="border-radius: 8px;">
+                    <i class="fas fa-trash-can mr-1"></i> Yes, Delete
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

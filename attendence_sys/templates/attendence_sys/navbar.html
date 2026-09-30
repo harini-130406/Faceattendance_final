@@ -1,33 +1,81 @@
 {% load static %}
 
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top navbar-modern">
+    <div class="container-fluid px-lg-4">
+        <a class="navbar-brand navbar-brand-custom" href="{% url 'home' %}">
+            <img src="{% static 'images/logo.png' %}" alt="Face Attendance" style="height: 36px; width: 36px; object-fit: contain; margin-right: 10px;" onerror="this.style.display='none'">
+            <span class="font-weight-bold" style="font-size: 1.15rem; letter-spacing: -0.01em;">Face <span style="color: #38bdf8; font-weight: 600;">Attendance</span></span>
+        </a>
 
-<style>
-  .hello-msg{
-    font-size: 18px;
-    color: #fff;
-    margin-right: 20px;
-  }
-</style>
+        <button class="navbar-toggler border-0" type="button" data-toggle="collapse" data-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
 
-<nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-dark">
- <img src="{% static 'images/logo.png' %}" height="50px" width="250px">
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-  </button>
-  <div class="collapse navbar-collapse" id="navbarNav">
-    <ul class="navbar-nav ml-auto">
-      <li class="nav-item active">
-        <span class="nav-link">Hello, {{ request.user.faculty }}</span>
-      </li>
-      <li class="nav-item active">
-        <a href="{% url 'home' %}" class="nav-link">Home</a>
-      </li>
-      <li class="nav-item active">
-        <a class="nav-link" href="{% url 'account' %}">Account</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="{% url 'logout' %}">Logout</a>
-      </li>
-    </ul>
-  </div>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <ul class="navbar-nav mx-auto">
+                <li class="nav-item">
+                    <a class="nav-link nav-link-modern" href="{% url 'home' %}">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-link-modern" href="{% url 'take_attendance' %}" style="background: rgba(2, 132, 199, 0.25); color: #38bdf8 !important;">
+                        <i class="fas fa-camera"></i>
+                        <span>Take Attendance</span>
+                        <span class="badge badge-info ml-1">AI</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-link-modern" href="{% url 'edit_attendance' %}">
+                        <i class="fas fa-user-pen"></i>
+                        <span>Edit Attendance</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-link-modern" href="{% url 'searchattendence' %}">
+                        <i class="fas fa-table-list"></i>
+                        <span>Attendance Records</span>
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link nav-link-modern dropdown-toggle" href="#" id="studentDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-graduation-cap"></i>
+                        <span>Students</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow-lg border-0" aria-labelledby="studentDropdown" style="border-radius: 12px; margin-top: 8px;">
+                        <a class="dropdown-item py-2" href="{% url 'student_directory' %}">
+                            <i class="fas fa-users text-primary mr-2"></i> All Students Directory
+                        </a>
+                        <a class="dropdown-item py-2" href="{% url 'add_student' %}">
+                            <i class="fas fa-user-plus text-success mr-2"></i> Add Student / Bulk Import
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item py-2" href="{% url 'download_excel_template' %}">
+                            <i class="fas fa-file-excel text-success mr-2"></i> Download Excel Template
+                        </a>
+                    </div>
+                </li>
+            </ul>
+
+            <ul class="navbar-nav ml-auto align-items-center">
+                <li class="nav-item mr-3">
+                    <a href="{% url 'account' %}" class="d-flex align-items-center text-decoration-none text-light">
+                        <div class="bg-primary rounded-circle text-white d-flex align-items-center justify-content-center mr-2" style="width: 34px; height: 34px; font-weight: 700; font-size: 0.9rem;">
+                            {{ request.user.username|slice:":1"|upper }}
+                        </div>
+                        <div class="d-none d-md-block text-left" style="line-height: 1.2;">
+                            <span class="d-block text-white font-weight-bold" style="font-size: 0.88rem;">{{ request.user.faculty|default:request.user.username }}</span>
+                            <small class="text-muted" style="font-size: 0.75rem;">Faculty</small>
+                        </div>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="btn btn-outline-danger btn-sm px-3" href="{% url 'logout' %}" style="border-radius: 8px; font-weight: 600;">
+                        <i class="fas fa-right-from-bracket mr-1"></i> Logout
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
 </nav>

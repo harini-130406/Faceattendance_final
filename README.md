@@ -1,25 +1,55 @@
-# Face Verification Based Attendance System
-## About
-In this Attendance System the attendance for students is marked using Face verification. The Faculty has the permission to take Attendance, add a student, modify student details. The Faculty can also search for attendance of a student using Multiparameter Search, by specifying the student ID, date of attendance, period of Attendance.<br>
-The credentials for the Faculty are provided by the superuser who has access to the whole database. Only the superuser can update the attendance of a student.<br>
-**Django** web framework was used for the development of the whole web app. **OpenCv and face_recognition API's** were used for the development of Face Recognizer. The Face Recognizer can detect multiple faces at a time and mark their attendance into Database.<br>
-**Note: Python version 3.6 was used for this project. And the dlib package required for installation of face_recognition api is also uploaded.**<br>
-To run the web app on your local computer, install the required libraries([requirements.txt](https://github.com/venugopalkadamba/Face_Verification_based_Attendance_system/blob/master/requirements.txt)) using the command:<br>
-```python
-pip3 install -r requirements.txt
-``` 
-<br>and run the following command in the command prompt:<br>
-```python
-python manage.py runserver
-``` 
+# Face Attendance System
 
-**To create your own credential for logging into the application**<br/>
-```python
-python manage.py createsuperuser
-```
-<br/>
-After running the above command and creating the credentials, you can use the same credentials for logging in.<br/>
+A modern, AI-powered Face Recognition Attendance System built with Django, OpenCV, dlib, and `face_recognition`.
 
-## Live Video of Attendance System
+## Key Features
+- **AI Classroom Attendance**: Upload a classroom group photo, automatically detect faces, match against enrolled students with confidence scoring, and visually preview detection bounding boxes.
+- **Interactive Review & Manual Editing**: Real-time review table to toggle Present/Absent with 1-click status updates before and after saving.
+- **Google Drive & Excel Integration**: Bulk import students from Excel spreadsheets with automatic download and caching of student photos from Google Drive sharing links.
+- **Student Directory**: Complete student management with photo previews, search, filtering by department/year/section, and individual/bulk deletion.
+- **Attendance Analytics & History**: Multi-parameter search and reporting by date, period, branch, and status.
+- **Modern Dashboard**: Responsive UI with dark navbar, KPI metric cards, and clean typography.
 
-![alt text](https://github.com/venugopalkadamba/Face_Verification_based_Attendance_system/blob/master/Final_video.gif)
+## Tech Stack
+- **Backend**: Django 6.1, Python 3.13
+- **Face Recognition**: `face_recognition`, `dlib-bin`, `opencv-python`
+- **Frontend**: Bootstrap 4.6, Plus Jakarta Sans, FontAwesome 6
+- **Database**: SQLite3 (compatible with PostgreSQL/MySQL)
+
+## Installation & Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/harini-130406/Faceattendance_final.git
+   cd Faceattendance_final
+   ```
+
+2. **Create and activate a virtual environment**:
+   ```bash
+   python -m venv venv
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   ```
+
+3. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run Database Migrations**:
+   ```bash
+   python manage.py migrate
+   ```
+
+5. **Create Superuser / Faculty Account**:
+   ```bash
+   python manage.py createsuperuser
+   ```
+
+6. **Start the Development Server**:
+   ```bash
+   python manage.py runserver
+   ```
+   Open `http://127.0.0.1:8000/` in your browser.

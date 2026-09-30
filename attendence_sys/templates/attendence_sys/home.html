@@ -1,163 +1,265 @@
 {% extends 'attendence_sys/main.html' %}
+{% load static %}
+
+{% block title %}Dashboard | Face Attendance System{% endblock %}
 
 {% block content %}
-<div class="container">
-    {% for message in messages %}
-        {% if message.tags == 'error' %}
-            <div class="alert alert-danger">
-                {{ message }}
+<div class="row align-items-center mb-4">
+    <div class="col-md-8">
+        <h2 class="font-weight-bold text-dark mb-1">
+            Welcome back, {{ request.user.faculty|default:request.user.username }}! 👋
+        </h2>
+        <p class="text-muted mb-0">
+            <i class="far fa-calendar-alt mr-1 text-primary"></i> {{ today_date|date:"l, F d, Y" }} &bull; Smart Face Recognition Attendance Dashboard
+        </p>
+    </div>
+    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary btn-lg shadow-sm">
+            <i class="fas fa-camera mr-2"></i> Take Attendance Now
+        </a>
+    </div>
+</div>
+
+<!-- 4 Key Performance Metrics -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
+        <div class="stat-card">
+            <div>
+                <div class="stat-label">Total Enrolled</div>
+                <div class="stat-number">{{ total_students }}</div>
+                <small class="text-muted">Registered in database</small>
             </div>
-        {% else %}
-            <div class="alert alert-success">
-                {{ message }}
-            </div>
-        {% endif %}
-    {% endfor %}
-    <div class="row">
-        <div class="col-md-6" style="margin-top: 20px;">
-            <div class="card card-body">
-                <center><h3>Take Attendence</h3></center>
-                <form class="form-horizontal" action="{% url 'attendence' %}" method="POST">
-                    {% csrf_token %}
-                    <div class="form-group">
-                        <label for="sel1">Select Branch:</label>
-                        <select name='branch' class="form-control" id="sel1">
-                            <option value="CSE">CSE</option>
-                            <option value="IT">IT</option>
-                            <option value="ECE">ECE</option>
-                            <option value="EEE">EEE</option>
-                            <option value="MECH">MECH</option>
-                            <option value="CHEM">CHEM</option>
-                            <option value="CIVIL">CIVIL</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="sel1">Select Year:</label>
-                        <select name='year' class="form-control" id="sel1">
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="sel1">Select Section:</label>
-                        <select name='section' class="form-control" id="sel1">
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="sel1">Select Period:</label>
-                        <select name='period' class="form-control" id="sel1">
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-block btn-info">Take Attendence</button>
-                </form>
+            <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">
+                <i class="fas fa-user-graduate"></i>
             </div>
         </div>
-        <div class="col-md-6" style="margin-top: 20px;">
-            <div class="card card-body">
-                <center><h3>Add Student</h3></center>
-                <form class="form-horizontal" action="" method="POST" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="row">
-                        <div class="col-sm-6">
-                            <div class="form-group">
-                                <label class="control-label">Enter First Name:</label>
-                                {{ studentForm.firstname }}
-                            </div>
-                        </div>
-                        <div class="col-sm-6">
-                            <div class="form-group">
-                                <label class="control-label">Enter Last Name:</label>
-                                {{ studentForm.lastname }}
-                            </div>
-                        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
+        <div class="stat-card">
+            <div>
+                <div class="stat-label">Sessions Today</div>
+                <div class="stat-number">{{ today_sessions_count }}</div>
+                <small class="text-muted">Classes recorded today</small>
+            </div>
+            <div class="stat-icon" style="background: #e0e7ff; color: #4f46e5;">
+                <i class="fas fa-clipboard-check"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
+        <div class="stat-card">
+            <div>
+                <div class="stat-label">Present Today</div>
+                <div class="stat-number text-success">{{ today_present }}</div>
+                <small class="text-danger font-weight-bold">{{ today_absent }} Absent</small>
+            </div>
+            <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">
+                <i class="fas fa-user-check"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
+        <div class="stat-card">
+            <div>
+                <div class="stat-label">Today's Attendance Rate</div>
+                <div class="stat-number {% if attendance_rate >= 75 %}text-success{% elif attendance_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                    {{ attendance_rate }}%
+                </div>
+                <div class="progress mt-2" style="height: 6px; width: 120px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ attendance_rate }}%" aria-valuenow="{{ attendance_rate }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+            <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
+                <i class="fas fa-chart-line"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4 Modern Action Cards -->
+<div class="row mb-5">
+    <!-- Action 1: Take Attendance -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="action-card action-primary">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">
+                        <i class="fas fa-camera"></i>
                     </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <div class="form-group">
-                                <label class="control-label">Enter Registration ID:</label>
-                                {{ studentForm.registration_id }}
-                            </div>
-                        </div>
+                    <span class="badge badge-info px-2 py-1">Recommended</span>
+                </div>
+                <h5 class="font-weight-bold text-dark mb-2">Take Attendance</h5>
+                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
+                    Upload a classroom group photo. Our AI identifies all faces, marks present/absent, and lets you review & edit on the spot.
+                </p>
+            </div>
+            <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary btn-block mt-3">
+                <i class="fas fa-camera-retro mr-1"></i> Open AI Camera
+            </a>
+        </div>
+    </div>
+
+    <!-- Action 2: Add Student (Excel + Drive Link) -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="action-card action-success">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">
+                        <i class="fas fa-file-excel"></i>
                     </div>
-                    <div class="row">
-                        <div class="col-sm-4">
-                            <div class="form-group">
-                                <label for="sel1">Select Branch:</label>
-                                {{ studentForm.branch }}
-                            </div>
-                        </div>
-                        <div class="col-sm-4">
-                            <div class="form-group">
-                                <label for="sel1">Select Year:</label>
-                                {{ studentForm.year }}
-                            </div>
-                        </div>
-                        <div class="col-sm-4">
-                            <div class="form-group">
-                                <label for="sel1">Select Section:</label>
-                                {{ studentForm.section }}
-                            </div>
-                        </div>
+                    <span class="badge badge-success px-2 py-1">Bulk & Drive</span>
+                </div>
+                <h5 class="font-weight-bold text-dark mb-2">Add Students</h5>
+                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
+                    Upload an Excel/CSV roster with Google Drive image links, or register individual students with Drive photo integration.
+                </p>
+            </div>
+            <a href="{% url 'add_student' %}" class="btn btn-modern-success btn-block mt-3">
+                <i class="fas fa-user-plus mr-1"></i> Add / Import Students
+            </a>
+        </div>
+    </div>
+
+    <!-- Action 3: Edit Attendance -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="action-card action-amber">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
+                        <i class="fas fa-user-pen"></i>
                     </div>
-                    <div class="row">
-                        <div class="col-md-3"></div>
-                        <div class="col-md-6">
-                            <div class="form-group" style="border: none;">
-                                <label class="control-label">Upload Profile Picture:</label>
-                                {{ studentForm.profile_pic }}
-                            </div>
-                        </div>
-                        <div class="col-md-3"></div>
+                    <span class="badge badge-warning px-2 py-1">Manual Override</span>
+                </div>
+                <h5 class="font-weight-bold text-dark mb-2">Edit Attendance</h5>
+                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
+                    Easily toggle student attendance between Present and Absent for any period or date with 1-click controls.
+                </p>
+            </div>
+            <a href="{% url 'edit_attendance' %}" class="btn btn-outline-warning text-dark btn-block mt-3 font-weight-bold" style="border-radius: 10px; border-width: 2px;">
+                <i class="fas fa-pen-to-square mr-1"></i> Edit Records
+            </a>
+        </div>
+    </div>
+
+    <!-- Action 4: Attendance History & Records -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="action-card action-indigo">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="stat-icon" style="background: #e0e7ff; color: #4f46e5;">
+                        <i class="fas fa-table-list"></i>
                     </div>
-                    <button type="submit" class="btn btn-block btn-info">Submit</button>    
-                </form>
+                    <span class="badge badge-secondary px-2 py-1">History</span>
+                </div>
+                <h5 class="font-weight-bold text-dark mb-2">Attendance Records</h5>
+                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
+                    Search, filter, and inspect detailed attendance by Branch, Year, Section, Period, or Date with export options.
+                </p>
+            </div>
+            <a href="{% url 'searchattendence' %}" class="btn btn-outline-primary btn-block mt-3 font-weight-bold" style="border-radius: 10px; border-width: 2px;">
+                <i class="fas fa-magnifying-glass mr-1"></i> Search Records
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Section: Today's Recorded Sessions & Enrolled Students -->
+<div class="row">
+    <!-- Today's Sessions -->
+    <div class="col-lg-7 mb-4">
+        <div class="card-modern h-100">
+            <div class="card-header-modern">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="fas fa-clock text-primary mr-2"></i> Today's Recorded Sessions
+                </span>
+                <a href="{% url 'take_attendance' %}" class="btn btn-sm btn-outline-primary" style="border-radius: 8px;">
+                    <i class="fas fa-plus mr-1"></i> New Session
+                </a>
+            </div>
+            <div class="card-body-modern p-0">
+                {% if today_slots %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" style="font-size: 0.92rem;">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Branch</th>
+                                    <th>Year</th>
+                                    <th>Section</th>
+                                    <th>Period</th>
+                                    <th class="text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for slot in today_slots %}
+                                <tr>
+                                    <td><span class="badge badge-primary px-2 py-1">{{ slot.branch }}</span></td>
+                                    <td>Year {{ slot.year }}</td>
+                                    <td>Section {{ slot.section }}</td>
+                                    <td><span class="badge badge-info px-2 py-1">Period {{ slot.period }}</span></td>
+                                    <td class="text-right">
+                                        <a href="{% url 'edit_attendance' %}?branch={{ slot.branch }}&year={{ slot.year }}&section={{ slot.section }}&period={{ slot.period }}&date={{ today_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-warning text-dark font-weight-bold mr-1" style="border-radius: 6px;">
+                                            <i class="fas fa-pencil mr-1"></i> Edit
+                                        </a>
+                                        <a href="{% url 'searchattendence' %}?branch={{ slot.branch }}&year={{ slot.year }}&section={{ slot.section }}&period={{ slot.period }}&date={{ today_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-info font-weight-bold" style="border-radius: 6px;">
+                                            <i class="fas fa-eye mr-1"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-clipboard-list fa-3x mb-3 text-gray-300"></i>
+                        <p class="font-weight-bold mb-1">No attendance recorded yet for today</p>
+                        <small>Click "Take Attendance" above to upload a classroom photo and scan.</small>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <div class="row">
-        
-        <div class="col-md-6" style="margin-top: 20px;">
-            <div class="card card-body">
-                <center><h3>Update Student Details</h3></center>
-                <form class="form-horizontal" action="{% url 'updateStudentRedirect' %}" method="POST">
-                    {% csrf_token %}
-                    <div class="form-group">
-                        <label class="control-label">Enter Student Registration ID:</label>
-                        <input name="reg_id" type="text" class="form-control" placeholder="Ex: 18341A1234">
-                    </div>
-                    <div class="form-group">
-                        <label for="sel1">Select Branch:</label>
-                        <select name='branch' class="form-control" id="sel1">
-                            <option value="CSE">CSE</option>
-                            <option value="IT">IT</option>
-                            <option value="ECE">ECE</option>
-                            <option value="EEE">EEE</option>
-                            <option value="MECH">MECH</option>
-                            <option value="CHEM">CHEM</option>
-                            <option value="CIVIL">CIVIL</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-block btn-info">Submit</button>
-                </form>
+    <!-- Recently Enrolled Students -->
+    <div class="col-lg-5 mb-4">
+        <div class="card-modern h-100">
+            <div class="card-header-modern">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="fas fa-users text-success mr-2"></i> Enrolled Students
+                </span>
+                <a href="{% url 'student_directory' %}" class="btn btn-sm btn-outline-success" style="border-radius: 8px;">
+                    View All ({{ total_students }})
+                </a>
             </div>
-        </div>
-        <div class="col-md-6" style="margin-top: 20px;;">
-            <div class="card card-body">
-                <center><h3>Search Attendence</h3></center>
-                    <a href="{% url 'searchattendence' %}" class="btn btn-block btn-info">Click Here</a>
+            <div class="card-body-modern p-0">
+                {% if recent_students %}
+                    <ul class="list-group list-group-flush">
+                        {% for s in recent_students %}
+                        <li class="list-group-item d-flex align-items-center justify-content-between px-4 py-3">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ s.get_primary_photo_url }}" alt="avatar" class="student-avatar mr-3" onerror="this.src='/static/images/default_avatar.png'">
+                                <div>
+                                    <div class="font-weight-bold text-dark" style="font-size: 0.92rem;">
+                                        {{ s.name|default:s.registration_id }}
+                                    </div>
+                                    <small class="text-muted font-weight-bold">
+                                        ID: {{ s.register_number|default:s.registration_id }} &bull; {{ s.branch }} Yr-{{ s.year }}{{ s.section }}
+                                    </small>
+                                </div>
+                            </div>
+                            <span class="badge badge-light border text-muted">
+                                {% if s.profile_pic or s.photos.exists %}<i class="fas fa-check-circle text-success" title="Photo enrolled"></i> Photo{% else %}<span class="text-warning">No photo</span>{% endif %}
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-user-plus fa-3x mb-3 text-gray-300"></i>
+                        <p class="font-weight-bold mb-1">No students enrolled yet</p>
+                        <a href="{% url 'add_student' %}" class="btn btn-sm btn-modern-success mt-2">Add First Student</a>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
