@@ -21,7 +21,7 @@ from .models import Student, StudentPhoto, Attendence, AttendanceSession, Facult
 from .filters import AttendenceFilter
 from .google_drive_helper import fetch_drive_image_bytes, attach_drive_photo_to_student
 from .google_sheets_service import sync_google_sheet, generate_excel_template
-from .detector import process_classroom_image, get_student_face_encoding
+from .detector import process_classroom_image, process_multiple_classroom_images, get_student_face_encoding
 import face_recognition
 import cv2
 import numpy as np
@@ -157,7 +157,12 @@ def takeAttendancePage(request):
         context['existing_present'] = existing_records.filter(status__iexact='Present').count()
 
         if action == 'detect':
-            classroom_file = request.FILES.get('classroom_image')
+            # Support both multiple photos ('classroom_images') and single photo ('classroom_image')
+            classroom_files = request.FILES.getlist('classroom_images')
+            if not classroom_files:
+                single = request.FILES.get('classroom_image')
+                if single:
+                    classroom_files = [single]
 
             # Fetch enrolled students
             enrolled = Student.objects.filter(
@@ -180,7 +185,7 @@ def takeAttendancePage(request):
                 )
                 return render(request, 'attendence_sys/take_attendance.html', context)
 
-            if not classroom_file:
+            if not classroom_files:
                 # If no image uploaded, provide manual attendance roster immediately
                 roster = []
                 for s in enrolled:
@@ -191,6 +196,7 @@ def takeAttendancePage(request):
                         'student': s,
                         'status': status,
                         'confidence': rec.confidence if rec else None,
+                        'detected_in': None,
                         'has_photo': bool(s.profile_pic.name != '' or s.photos.exists()),
                         'photo_url': s.get_primary_photo_url(),
                     })
@@ -198,18 +204,20 @@ def takeAttendancePage(request):
                     'step': 'review',
                     'roster': roster,
                     'total_enrolled': len(roster),
+                    'total_photos': 0,
                     'present_count': sum(1 for r in roster if r['status'] == 'Present'),
                     'absent_count': sum(1 for r in roster if r['status'] != 'Present'),
                     'total_detected_faces': 0,
+                    'annotated_images': [],
                     'annotated_image': None,
                 })
                 messages.info(request, "Manual attendance mode loaded. Toggle student statuses and click Save.")
                 return render(request, 'attendence_sys/take_attendance.html', context)
 
-            # Process classroom image with AI
+            # Process multiple or single classroom images with AI
             try:
-                detection_result = process_classroom_image(
-                    classroom_file,
+                detection_result = process_multiple_classroom_images(
+                    classroom_files,
                     branch=branch,
                     year=year,
                     section=section,
@@ -225,8 +233,9 @@ def takeAttendancePage(request):
                     defaults={'teacher': str(faculty) if faculty else 'Faculty'}
                 )
                 try:
-                    classroom_file.seek(0)
-                    session.classroom_image.save(f"classroom_{branch}_{year}_{section}_{period}.jpg", classroom_file, save=True)
+                    first_file = classroom_files[0]
+                    first_file.seek(0)
+                    session.classroom_image.save(f"classroom_{branch}_{year}_{section}_{period}.jpg", first_file, save=True)
                 except Exception:
                     pass
 
@@ -234,20 +243,25 @@ def takeAttendancePage(request):
                     'step': 'review',
                     'roster': detection_result['roster'],
                     'total_enrolled': detection_result['total_enrolled'],
+                    'total_photos': detection_result['total_photos'],
                     'total_detected_faces': detection_result['total_detected_faces'],
                     'present_count': detection_result['present_count'],
                     'absent_count': detection_result['absent_count'],
                     'attendance_rate': detection_result['attendance_rate'],
+                    'annotated_images': detection_result['annotated_images'],
                     'annotated_image': detection_result['annotated_image'],
                 })
+                num_photos = detection_result['total_photos']
+                photo_label = f"{num_photos} classroom photos" if num_photos > 1 else "1 classroom photo"
                 messages.success(
                     request,
-                    f"Classroom image analyzed: {detection_result['total_detected_faces']} faces detected. {detection_result['present_count']} marked Present, {detection_result['absent_count']} Absent. You can review/edit below before saving."
+                    f"Successfully analyzed {photo_label}: detected {detection_result['total_detected_faces']} total faces across all photos. "
+                    f"{detection_result['present_count']} students recognized Present, {detection_result['absent_count']} Absent. You can review/edit below before saving."
                 )
                 return render(request, 'attendence_sys/take_attendance.html', context)
 
             except Exception as e:
-                messages.error(request, f"Error analyzing classroom image: {e}")
+                messages.error(request, f"Error analyzing classroom photos: {e}")
                 return render(request, 'attendence_sys/take_attendance.html', context)
 
         elif action == 'save':

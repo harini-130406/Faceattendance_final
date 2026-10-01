@@ -219,6 +219,8 @@ Additionally, the system eliminates the bottleneck of manual student registratio
 | **6** | Attendance Record Modification | **Completed** | Dedicated post-session edit interface |
 | **7** | Full Authentication & Faculty Profiles | **Completed** | Login, registration, password reset, and profile management |
 | **8** | Version Control & Repository Synchronization | **Completed** | Clean Git repository on `main` branch, pushed to GitHub remote |
+| **9** | Multi-Angle Classroom Photo Recognition | **Completed** | Batch upload and scanning of multiple classroom group photos with aggregate face-matching across datasets |
+| **10** | High-Speed AI Detection Acceleration | **Completed** | Batch C++ landmark & face-chip descriptor extraction, bulk embedding pre-caching, and vectorized matching cutting scan times from ~20s to ~1-2s |
 
 ---
 

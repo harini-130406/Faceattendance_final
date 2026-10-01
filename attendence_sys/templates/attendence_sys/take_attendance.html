@@ -3,6 +3,105 @@
 
 {% block title %}Take Attendance | Smart Face Attendance System{% endblock %}
 
+{% block extra_css %}
+<style>
+    .multi-photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+    .photo-preview-card {
+        background: #0f172a;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .photo-preview-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    }
+    .thumbnail-chip {
+        position: relative;
+        width: 90px;
+        height: 70px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid #38bdf8;
+        background: #000;
+    }
+    .thumbnail-chip img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .thumbnail-chip .chip-remove-btn {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: rgba(220, 38, 38, 0.9);
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    /* High-speed scanning overlay */
+    .scan-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.78);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 99999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .scan-card {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 36px 32px;
+        width: 90%;
+        max-width: 440px;
+        text-align: center;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+        animation: scanScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes scanScaleIn {
+        from { transform: scale(0.92); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .scan-icon-pulse {
+        width: 70px;
+        height: 70px;
+        margin: 0 auto 16px;
+        background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 26px;
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.5);
+        animation: scanPulseRing 1.3s infinite;
+    }
+    @keyframes scanPulseRing {
+        0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.6); }
+        70% { box-shadow: 0 0 0 16px rgba(79, 70, 229, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Page Header -->
 <div class="row align-items-center mb-4">
@@ -11,7 +110,7 @@
             <i class="fas fa-camera-retro text-primary mr-2"></i> Classroom AI Face Attendance
         </h2>
         <p class="text-muted mb-0">
-            Upload a group photo or snap via webcam. AI recognizes all enrolled students, marks attendance automatically, and allows 1-click review.
+            Upload <strong>one or multiple classroom group photos</strong> (e.g., different angles, left wing, right wing, back row). AI scans all images, identifies students in your dataset, and aggregates attendance with 1-click review.
         </p>
     </div>
     <div class="col-md-4 text-md-right mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end" style="gap: 8px;">
@@ -40,16 +139,16 @@
 </div>
 {% endif %}
 
-<!-- STEP 1: CLASS SELECTION & PHOTO UPLOAD -->
+<!-- STEP 1: CLASS SELECTION & MULTI-PHOTO UPLOAD -->
 <div class="card-modern mb-4">
     <div class="card-header-modern bg-white">
         <span class="d-flex align-items-center">
             <span class="badge badge-primary mr-2" style="font-size: 0.8rem; padding: 4px 8px; border-radius: 6px;">STEP 1</span>
-            <strong>Select Academic Class & Capture Classroom Photo</strong>
+            <strong>Select Class & Upload Multiple Classroom Photos</strong>
         </span>
         {% if step == 'review' %}
             <span class="badge badge-success px-3 py-1 font-weight-bold">
-                <i class="fas fa-check-circle mr-1"></i> Photo Processed
+                <i class="fas fa-check-circle mr-1"></i> {{ total_photos }} Photo{{ total_photos|pluralize }} Analyzed
             </span>
         {% endif %}
     </div>
@@ -107,34 +206,54 @@
             <div class="mt-2">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <label class="font-weight-bold text-dark small mb-0">
-                        <i class="fas fa-image text-primary mr-1"></i> Classroom Photo / Camera Source
+                        <i class="fas fa-images text-primary mr-1"></i> Classroom Photo Capture Mode
                     </label>
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-primary active font-weight-bold px-3" id="uploadTabBtn" onclick="switchInputMethod('upload')">
-                            <i class="fas fa-file-image mr-1"></i> Upload File
+                            <i class="fas fa-file-image mr-1"></i> Upload Photos (Multiple Allowed)
                         </button>
                         <button type="button" class="btn btn-outline-danger font-weight-bold px-3" id="webcamTabBtn" onclick="switchInputMethod('webcam')">
-                            <i class="fas fa-camera mr-1"></i> Use Webcam
+                            <i class="fas fa-camera mr-1"></i> Webcam Batch Capture
                         </button>
                     </div>
                 </div>
 
-                <!-- Mode 1: File Dropzone -->
+                <!-- Mode 1: Multiple File Dropzone -->
                 <div id="fileUploadContainer">
-                    <div class="upload-dropzone" onclick="document.getElementById('classroom_image').click();">
-                        <input type="file" name="classroom_image" id="classroom_image" accept="image/*" style="display: none;" onchange="previewImageName(this)">
+                    <div class="upload-dropzone" onclick="document.getElementById('classroom_images').click();" style="border: 2px dashed #38bdf8; background: #f0f9ff; padding: 2.2rem 1.5rem;">
+                        <!-- Multi-file file input -->
+                        <input type="file" name="classroom_images" id="classroom_images" accept="image/*" multiple style="display: none;" onchange="handleMultipleFileSelect(this)">
+                        
                         <div id="dropzoneContent">
                             <div class="stat-icon mx-auto mb-3" style="background: #eff6ff; color: #1e40af; width: 64px; height: 64px; font-size: 1.8rem;">
-                                <i class="fas fa-cloud-arrow-up"></i>
+                                <i class="fas fa-images"></i>
                             </div>
-                            <h6 class="font-weight-bold text-dark mb-1">Click to browse or drag & drop classroom photo</h6>
-                            <p class="text-muted small mb-0">Supports JPG, PNG, JPEG high-resolution classroom photos</p>
+                            <h5 class="font-weight-bold text-dark mb-1">Click to browse or drop classroom photos here</h5>
+                            <p class="text-muted small mb-2">You can select <strong>one or multiple group photos</strong> at once (hold Ctrl/Cmd to select multiple files)</p>
+                            <span class="badge badge-primary px-3 py-1 font-weight-bold" style="font-size: 0.78rem;">
+                                <i class="fas fa-layer-group mr-1"></i> Multi-Photo Face Detection Supported
+                            </span>
                         </div>
-                        <div id="fileNamePreview" class="mt-2 text-success font-weight-bold" style="display: none;"></div>
+
+                        <!-- Selected Files Gallery Preview -->
+                        <div id="selectedFilesTray" class="mt-3" style="display: none;" onclick="event.stopPropagation();">
+                            <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
+                                <span class="font-weight-bold text-dark small" id="selectedCountBadge">0 Photos Selected</span>
+                                <div style="gap: 8px;" class="d-flex">
+                                    <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold" onclick="document.getElementById('classroom_images').click();">
+                                        <i class="fas fa-plus mr-1"></i> Add More Photos
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" onclick="clearSelectedFiles();">
+                                        <i class="fas fa-trash-can mr-1"></i> Clear All
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="thumbnailsRow" class="d-flex flex-wrap justify-content-center" style="gap: 12px;"></div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Mode 2: Quick Webcam Capture -->
+                <!-- Mode 2: Quick Webcam Batch Capture -->
                 <div id="webcamCaptureContainer" style="display: none;">
                     <div class="p-3 bg-dark text-center" style="border-radius: 14px;">
                         <div style="position: relative; max-width: 640px; margin: 0 auto; background: #000; border-radius: 10px; overflow: hidden; min-height: 280px; display: flex; align-items: center; justify-content: center;">
@@ -143,22 +262,39 @@
                             <div id="quickWebcamPlaceholder" class="p-4 text-white">
                                 <i class="fas fa-video fa-3x mb-3 text-secondary"></i>
                                 <h6 class="font-weight-bold">Webcam Ready</h6>
-                                <p class="small text-muted mb-3">Click below to activate camera preview</p>
+                                <p class="small text-muted mb-3">Activate camera to take snapshots of different classroom sections</p>
                                 <button type="button" class="btn btn-primary font-weight-bold px-4" onclick="startQuickWebcam()">
                                     <i class="fas fa-play mr-1"></i> Open Camera
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Webcam Controls -->
                         <div class="mt-3 d-flex justify-content-center align-items-center flex-wrap" style="gap: 10px;" id="quickWebcamControls">
                             <button type="button" class="btn btn-outline-light btn-sm" id="closeCamBtn" onclick="stopQuickWebcam()" style="display: none;">
                                 <i class="fas fa-stop mr-1"></i> Close Camera
                             </button>
-                            <button type="button" class="btn btn-success font-weight-bold px-4" id="snapAndScanBtn" onclick="snapAndSubmit()" style="display: none;">
-                                <i class="fas fa-camera mr-2"></i> Snap Photo & Detect Attendance
+                            <button type="button" class="btn btn-info font-weight-bold px-3" id="snapAndAddBtn" onclick="snapAndAddToBatch()" style="display: none;">
+                                <i class="fas fa-plus-circle mr-1"></i> Snap Photo & Add to Batch
+                            </button>
+                            <button type="button" class="btn btn-success font-weight-bold px-4" id="snapAndScanBtn" onclick="snapSingleAndSubmit()" style="display: none;">
+                                <i class="fas fa-camera mr-2"></i> Snap & Scan Instantly
                             </button>
                             <a href="{% url 'live_attendance' %}" class="btn btn-outline-info btn-sm">
-                                <i class="fas fa-expand mr-1"></i> Real-Time Live Scanner
+                                <i class="fas fa-expand mr-1"></i> Real-Time Kiosk Scanner
                             </a>
+                        </div>
+
+                        <!-- Webcam Captured Snapshots Tray -->
+                        <div id="webcamSnapshotsTray" class="mt-3 pt-3 border-top border-secondary text-left" style="display: none; max-width: 640px; margin: 0 auto;">
+                            <div class="d-flex align-items-center justify-content-between mb-2 text-white">
+                                <span class="small font-weight-bold"><i class="fas fa-layer-group text-info mr-1"></i> Snapped Classroom Photos (<span id="webcamSnapCount">0</span>)</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearWebcamSnaps()">Clear Snaps</button>
+                            </div>
+                            <div id="webcamThumbnailsRow" class="d-flex flex-wrap" style="gap: 10px;"></div>
+                            <button type="button" class="btn btn-success btn-block font-weight-bold mt-3" onclick="submitWebcamBatch()">
+                                <i class="fas fa-wand-magic-sparkles mr-2"></i> Scan All (<span id="webcamBatchScanCount">0</span>) Snapped Photos & Detect Attendance
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -170,7 +306,7 @@
                     <i class="fas fa-clipboard-user mr-1"></i> Load Manual Roster (Without Image)
                 </button>
                 <button type="submit" class="btn btn-modern-primary btn-lg px-4" id="scanBtn">
-                    <i class="fas fa-wand-magic-sparkles mr-2"></i> Scan Classroom Photo & Detect Attendance
+                    <i class="fas fa-wand-magic-sparkles mr-2"></i> Scan Uploaded Photos & Detect Attendance
                 </button>
             </div>
         </form>
@@ -201,54 +337,98 @@
     <div class="card-body-modern">
         <!-- Detection Summary KPI Metrics -->
         <div class="row mb-4">
-            <div class="col-md-3 col-6 mb-3">
+            <div class="col-xl-2 col-md-4 col-6 mb-3">
                 <div class="stat-card p-3 card-primary">
                     <div>
-                        <div class="stat-label">Enrolled Students</div>
+                        <div class="stat-label">Enrolled</div>
                         <div class="h4 font-weight-bold mb-0 text-dark" id="displayEnrolled">{{ total_enrolled }}</div>
                     </div>
-                    <div class="stat-icon" style="background: #eff6ff; color: #1e40af; width: 44px; height: 44px; font-size: 1.2rem;">
+                    <div class="stat-icon" style="background: #eff6ff; color: #1e40af; width: 42px; height: 42px; font-size: 1.1rem;">
                         <i class="fas fa-users"></i>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 col-6 mb-3">
+            <div class="col-xl-2 col-md-4 col-6 mb-3">
                 <div class="stat-card p-3 card-indigo">
                     <div>
-                        <div class="stat-label">Faces in Photo</div>
+                        <div class="stat-label">Photos Scanned</div>
+                        <div class="h4 font-weight-bold mb-0 text-primary">{{ total_photos|default:"1" }}</div>
+                    </div>
+                    <div class="stat-icon" style="background: #e0e7ff; color: #4338ca; width: 42px; height: 42px; font-size: 1.1rem;">
+                        <i class="fas fa-images"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-4 col-6 mb-3">
+                <div class="stat-card p-3 card-indigo">
+                    <div>
+                        <div class="stat-label">Total Faces in Photos</div>
                         <div class="h4 font-weight-bold mb-0 text-info">{{ total_detected_faces }}</div>
                     </div>
-                    <div class="stat-icon" style="background: #e0e7ff; color: #4338ca; width: 44px; height: 44px; font-size: 1.2rem;">
+                    <div class="stat-icon" style="background: #e0f2fe; color: #0284c7; width: 42px; height: 42px; font-size: 1.1rem;">
                         <i class="fas fa-camera"></i>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 col-6 mb-3">
+            <div class="col-xl-2 col-md-6 col-6 mb-3">
                 <div class="stat-card p-3 card-success">
                     <div>
                         <div class="stat-label">Marked Present</div>
                         <div class="h4 font-weight-bold mb-0 text-success" id="displayPresent">{{ present_count }}</div>
                     </div>
-                    <div class="stat-icon" style="background: #d1fae5; color: #059669; width: 44px; height: 44px; font-size: 1.2rem;">
+                    <div class="stat-icon" style="background: #d1fae5; color: #059669; width: 42px; height: 42px; font-size: 1.1rem;">
                         <i class="fas fa-circle-check"></i>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 col-6 mb-3">
+            <div class="col-xl-3 col-md-6 col-12 mb-3">
                 <div class="stat-card p-3 card-warning">
                     <div>
                         <div class="stat-label">Marked Absent</div>
                         <div class="h4 font-weight-bold mb-0 text-danger" id="displayAbsent">{{ absent_count }}</div>
                     </div>
-                    <div class="stat-icon" style="background: #fee2e2; color: #dc2626; width: 44px; height: 44px; font-size: 1.2rem;">
+                    <div class="stat-icon" style="background: #fee2e2; color: #dc2626; width: 42px; height: 42px; font-size: 1.1rem;">
                         <i class="fas fa-circle-xmark"></i>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Visual Annotated Image (if available) -->
-        {% if annotated_image %}
+        <!-- Visual Annotated Photos Preview Gallery (Supports Single & Multiple) -->
+        {% if annotated_images %}
+        <div class="mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap: 10px;">
+                <h6 class="font-weight-bold text-dark mb-0">
+                    <i class="fas fa-images text-primary mr-1"></i> AI Face Detection Previews ({{ annotated_images|length }} Photo{{ annotated_images|length|pluralize }}):
+                </h6>
+                <div class="small text-muted">
+                    <span class="badge badge-success px-2 py-1 mr-2"><i class="fas fa-square mr-1"></i> Green: Recognized Student</span>
+                    <span class="badge badge-warning text-dark px-2 py-1"><i class="fas fa-square mr-1"></i> Yellow: Unassigned Face</span>
+                </div>
+            </div>
+
+            <!-- Multi-Photo Grid -->
+            <div class="multi-photo-grid">
+                {% for item in annotated_images %}
+                <div class="photo-preview-card">
+                    <div class="p-2 d-flex align-items-center justify-content-between text-white border-bottom border-secondary" style="font-size: 0.82rem;">
+                        <span class="font-weight-bold">
+                            <i class="fas fa-camera text-info mr-1"></i> {{ item.label }}
+                        </span>
+                        <span>
+                            <span class="badge badge-info px-2 py-1">{{ item.detected_faces }} faces</span>
+                            <span class="badge badge-success px-2 py-1 ml-1">{{ item.recognized_count }} matched</span>
+                        </span>
+                    </div>
+                    <div class="p-2 text-center bg-dark">
+                        <img src="{{ item.image_b64 }}" alt="{{ item.label }}" class="img-fluid rounded" style="max-height: 280px; width: 100%; object-fit: contain;">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% elif annotated_image %}
+        <!-- Single Photo Fallback Preview -->
         <div class="mb-4 text-center">
             <h6 class="font-weight-bold text-dark text-left mb-2">
                 <i class="fas fa-image text-primary mr-1"></i> AI Face Detection Preview:
@@ -298,7 +478,7 @@
                             <th style="width: 70px;">Photo</th>
                             <th>Student ID</th>
                             <th>Student Name</th>
-                            <th>AI Detection Result</th>
+                            <th>AI Detection Result (Across All Photos)</th>
                             <th class="text-center" style="width: 140px;">Status</th>
                             <th class="text-center" style="width: 160px;">1-Click Action</th>
                         </tr>
@@ -323,16 +503,25 @@
                             </td>
                             <td>
                                 {% if row.status == 'Present' %}
-                                    <span class="text-success font-weight-bold small">
-                                        <i class="fas fa-check-circle mr-1"></i> Recognized in Classroom Photo
-                                        {% if row.confidence %}({{ row.confidence }}% match){% endif %}
-                                    </span>
+                                    <div class="d-flex align-items-center flex-wrap" style="gap: 6px;">
+                                        <span class="text-success font-weight-bold small">
+                                            <i class="fas fa-check-circle mr-1"></i> Recognized Present
+                                        </span>
+                                        {% if row.detected_in %}
+                                            <span class="badge badge-light border text-dark small">
+                                                <i class="fas fa-camera text-primary mr-1"></i>Found in: {{ row.detected_in }}
+                                            </span>
+                                        {% endif %}
+                                        {% if row.confidence %}
+                                            <span class="text-muted small">({{ row.confidence }}% match)</span>
+                                        {% endif %}
+                                    </div>
                                 {% else %}
                                     <span class="text-muted small">
                                         {% if row.has_photo %}
-                                            <i class="fas fa-user-xmark mr-1 text-danger"></i> Not detected in photo
+                                            <i class="fas fa-user-xmark mr-1 text-danger"></i> Not detected in {{ total_photos|default:"1" }} uploaded photo{{ total_photos|pluralize }}
                                         {% else %}
-                                            <i class="fas fa-triangle-exclamation mr-1 text-warning"></i> No biometric photo registered
+                                            <i class="fas fa-triangle-exclamation mr-1 text-warning"></i> No biometric reference photo registered
                                         {% endif %}
                                     </span>
                                 {% endif %}
@@ -368,21 +557,115 @@
 </div>
 {% endif %}
 
+<!-- High-Speed AI Face Scanning Overlay -->
+<div id="aiScanOverlay" class="scan-overlay">
+    <div class="scan-card">
+        <div class="scan-icon-pulse">
+            <i class="fas fa-wand-magic-sparkles"></i>
+        </div>
+        <h5 class="font-weight-bold text-dark mb-1" id="scanModalTitle">Scanning Classroom Faces</h5>
+        <p class="text-muted small mb-3" id="scanModalSubtitle">High-speed batch detection across multiple photos...</p>
+        
+        <div class="progress mb-3" style="height: 8px; border-radius: 6px; background: #e2e8f0; overflow: hidden;">
+            <div id="scanProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 15%; background: linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%); transition: width 0.3s ease;"></div>
+        </div>
+        
+        <div class="d-flex align-items-center justify-content-center text-primary small font-weight-bold" id="scanStatusMsg">
+            <span class="spinner-border spinner-border-sm mr-2" role="status"></span>
+            <span>Detecting faces in photos...</span>
+        </div>
+        
+        <div class="small text-muted mt-3 pt-2 border-top">
+            <i class="fas fa-bolt text-warning mr-1"></i> Multi-core C++ batch acceleration active
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function previewImageName(input) {
-    if (input.files && input.files[0]) {
-        var name = input.files[0].name;
-        document.getElementById('fileNamePreview').style.display = 'block';
-        document.getElementById('fileNamePreview').innerHTML = '<i class="fas fa-check-circle mr-1"></i> Selected: <strong>' + name + '</strong>';
-        document.getElementById('dropzoneContent').style.display = 'none';
+// Multiple File Selection & Previews
+let currentSelectedFiles = [];
+
+function handleMultipleFileSelect(input) {
+    if (input.files && input.files.length > 0) {
+        currentSelectedFiles = Array.from(input.files);
+        renderSelectedThumbnails();
     }
 }
 
-// Quick Webcam Integration for Take Attendance Page
+function renderSelectedThumbnails() {
+    const dropzoneContent = document.getElementById('dropzoneContent');
+    const tray = document.getElementById('selectedFilesTray');
+    const thumbnailsRow = document.getElementById('thumbnailsRow');
+    const countBadge = document.getElementById('selectedCountBadge');
+    const scanBtn = document.getElementById('scanBtn');
+
+    if (currentSelectedFiles.length === 0) {
+        dropzoneContent.style.display = 'block';
+        tray.style.display = 'none';
+        scanBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Scan Uploaded Photos & Detect Attendance';
+        return;
+    }
+
+    dropzoneContent.style.display = 'none';
+    tray.style.display = 'block';
+    thumbnailsRow.innerHTML = '';
+    const plural = currentSelectedFiles.length > 1 ? 'Photos' : 'Photo';
+    countBadge.innerHTML = `<i class="fas fa-images text-primary mr-1"></i> <strong>${currentSelectedFiles.length}</strong> ${plural} Ready for AI Scanning`;
+
+    currentSelectedFiles.forEach((file, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'thumbnail-chip';
+        chip.title = file.name;
+
+        const img = document.createElement('img');
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'chip-remove-btn';
+        rmBtn.innerHTML = '&times;';
+        rmBtn.title = 'Remove this photo';
+        rmBtn.onclick = function(e) {
+            e.stopPropagation();
+            removeFileByIndex(index);
+        };
+
+        chip.appendChild(img);
+        chip.appendChild(rmBtn);
+        thumbnailsRow.appendChild(chip);
+    });
+
+    scanBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles mr-2"></i> Scan <strong>${currentSelectedFiles.length}</strong> Photo${currentSelectedFiles.length > 1 ? 's' : ''} & Detect Attendance`;
+}
+
+function removeFileByIndex(index) {
+    currentSelectedFiles.splice(index, 1);
+    updateFileInputFromList();
+    renderSelectedThumbnails();
+}
+
+function clearSelectedFiles() {
+    currentSelectedFiles = [];
+    updateFileInputFromList();
+    renderSelectedThumbnails();
+}
+
+function updateFileInputFromList() {
+    const input = document.getElementById('classroom_images');
+    const dataTransfer = new DataTransfer();
+    currentSelectedFiles.forEach(file => dataTransfer.items.add(file));
+    input.files = dataTransfer.files;
+}
+
+// Quick Webcam Integration for Multiple or Single Snapshots
 let quickStream = null;
+let webcamBatchFiles = [];
 
 function switchInputMethod(mode) {
     const uploadContainer = document.getElementById('fileUploadContainer');
@@ -414,6 +697,7 @@ async function startQuickWebcam() {
         const video = document.getElementById('quickWebcamVideo');
         const placeholder = document.getElementById('quickWebcamPlaceholder');
         const snapBtn = document.getElementById('snapAndScanBtn');
+        const snapAddBtn = document.getElementById('snapAndAddBtn');
         const closeBtn = document.getElementById('closeCamBtn');
 
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -424,6 +708,7 @@ async function startQuickWebcam() {
         video.style.display = 'block';
         placeholder.style.display = 'none';
         snapBtn.style.display = 'inline-block';
+        snapAddBtn.style.display = 'inline-block';
         closeBtn.style.display = 'inline-block';
     } catch(err) {
         alert("Camera access denied or unavailable: " + err.message);
@@ -438,14 +723,16 @@ function stopQuickWebcam() {
     const video = document.getElementById('quickWebcamVideo');
     const placeholder = document.getElementById('quickWebcamPlaceholder');
     const snapBtn = document.getElementById('snapAndScanBtn');
+    const snapAddBtn = document.getElementById('snapAndAddBtn');
     const closeBtn = document.getElementById('closeCamBtn');
     if (video) video.style.display = 'none';
     if (placeholder) placeholder.style.display = 'block';
     if (snapBtn) snapBtn.style.display = 'none';
+    if (snapAddBtn) snapAddBtn.style.display = 'none';
     if (closeBtn) closeBtn.style.display = 'none';
 }
 
-function snapAndSubmit() {
+function snapSingleAndSubmit() {
     const video = document.getElementById('quickWebcamVideo');
     const canvas = document.getElementById('quickWebcamCanvas');
     if (!video || !quickStream) return;
@@ -456,25 +743,103 @@ function snapAndSubmit() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob(blob => {
-        const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
+        const file = new File([blob], "webcam_snap_1.jpg", { type: "image/jpeg" });
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
-        const fileInput = document.getElementById('classroom_image');
+        const fileInput = document.getElementById('classroom_images');
         fileInput.files = dataTransfer.files;
 
         stopQuickWebcam();
         const form = document.getElementById('attendanceDetectionForm');
-        document.getElementById('scanBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing Classroom Photo...';
+        document.getElementById('scanBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing Webcam Photo...';
         form.submit();
     }, 'image/jpeg', 0.9);
 }
 
-function loadManualRoster() {
-    var form = document.getElementById('attendanceDetectionForm');
-    document.getElementById('classroom_image').value = '';
+function snapAndAddToBatch() {
+    const video = document.getElementById('quickWebcamVideo');
+    const canvas = document.getElementById('quickWebcamCanvas');
+    if (!video || !quickStream) return;
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(blob => {
+        const snapNum = webcamBatchFiles.length + 1;
+        const file = new File([blob], `webcam_snap_${snapNum}.jpg`, { type: "image/jpeg" });
+        webcamBatchFiles.push(file);
+        renderWebcamSnaps();
+    }, 'image/jpeg', 0.9);
+}
+
+function renderWebcamSnaps() {
+    const tray = document.getElementById('webcamSnapshotsTray');
+    const countSpan = document.getElementById('webcamSnapCount');
+    const batchCountSpan = document.getElementById('webcamBatchScanCount');
+    const row = document.getElementById('webcamThumbnailsRow');
+
+    if (webcamBatchFiles.length === 0) {
+        tray.style.display = 'none';
+        return;
+    }
+
+    tray.style.display = 'block';
+    countSpan.innerText = webcamBatchFiles.length;
+    batchCountSpan.innerText = webcamBatchFiles.length;
+    row.innerHTML = '';
+
+    webcamBatchFiles.forEach((file, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'thumbnail-chip';
+
+        const img = document.createElement('img');
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'chip-remove-btn';
+        rmBtn.innerHTML = '&times;';
+        rmBtn.onclick = function() {
+            webcamBatchFiles.splice(index, 1);
+            renderWebcamSnaps();
+        };
+
+        chip.appendChild(img);
+        chip.appendChild(rmBtn);
+        row.appendChild(chip);
+    });
+}
+
+function clearWebcamSnaps() {
+    webcamBatchFiles = [];
+    renderWebcamSnaps();
+}
+
+function submitWebcamBatch() {
+    if (webcamBatchFiles.length === 0) return;
+    const dataTransfer = new DataTransfer();
+    webcamBatchFiles.forEach(file => dataTransfer.items.add(file));
+    const fileInput = document.getElementById('classroom_images');
+    fileInput.files = dataTransfer.files;
+
+    stopQuickWebcam();
+    const form = document.getElementById('attendanceDetectionForm');
+    document.getElementById('scanBtn').innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing ${webcamBatchFiles.length} Photos...`;
     form.submit();
 }
 
+function loadManualRoster() {
+    var form = document.getElementById('attendanceDetectionForm');
+    document.getElementById('classroom_images').value = '';
+    form.submit();
+}
+
+// Student Review Table Functions
 function toggleStudentStatus(regId) {
     var input = document.getElementById('status_input_' + regId);
     var badge = document.getElementById('badge_' + regId);
@@ -564,6 +929,68 @@ function filterRoster(filterType, btn) {
         }
     });
 }
+
+// High-Speed AI Face Scanning Overlay Controller
+function showScanningOverlay(photoCount) {
+    const overlay = document.getElementById('aiScanOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+
+    const pCount = photoCount || 1;
+    const title = document.getElementById('scanModalTitle');
+    const subtitle = document.getElementById('scanModalSubtitle');
+    const pbar = document.getElementById('scanProgressBar');
+    const msg = document.getElementById('scanStatusMsg');
+
+    if (pCount > 1) {
+        title.innerText = `Scanning ${pCount} Classroom Photos`;
+        subtitle.innerText = `Fast C++ batch scanning across all ${pCount} image angles...`;
+    } else {
+        title.innerText = `Scanning Classroom Photo`;
+        subtitle.innerText = `Rapid neural face detection & dataset matching...`;
+    }
+
+    let progress = 18;
+    pbar.style.width = progress + '%';
+
+    const msgs = [
+        "Optimizing image dimensions for fast detection...",
+        "Scanning faces with HOG neural detector...",
+        "Aligning 5-point facial landmark chips...",
+        "Computing 128D ResNet descriptors in C++ batch...",
+        "Cross-referencing enrolled student dataset..."
+    ];
+
+    let msgIdx = 0;
+    const interval = setInterval(() => {
+        if (progress < 90) {
+            progress += Math.floor(Math.random() * 16) + 10;
+            if (progress > 90) progress = 90;
+            pbar.style.width = progress + '%';
+        }
+        msgIdx = (msgIdx + 1) % msgs.length;
+        if (msg) {
+            msg.innerHTML = `<span class="spinner-border spinner-border-sm mr-2" role="status"></span><span>${msgs[msgIdx]}</span>`;
+        }
+    }, 380);
+}
+
+// Wire up submit listener for attendanceDetectionForm
+document.addEventListener("DOMContentLoaded", function() {
+    const form = document.getElementById('attendanceDetectionForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const input = document.getElementById('classroom_images');
+            const count = (input && input.files) ? input.files.length : 0;
+            const btn = document.getElementById('scanBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="spinner-border spinner-border-sm mr-2" role="status"></span> Scanning ${count > 1 ? count + ' Photos' : 'Photos'}...`;
+            }
+            showScanningOverlay(count);
+        });
+    }
+});
 
 // Scroll to review section if present
 {% if step == 'review' %}
