@@ -1,72 +1,116 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Dashboard | Face Attendance System{% endblock %}
+{% block title %}Dashboard | Smart Face Attendance System{% endblock %}
 
 {% block content %}
-<div class="row align-items-center mb-4">
-    <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
-            Welcome back, {{ request.user.faculty|default:request.user.username }}! 👋
-        </h2>
-        <p class="text-muted mb-0">
-            <i class="far fa-calendar-alt mr-1 text-primary"></i> {{ today_date|date:"l, F d, Y" }} &bull; Smart Face Recognition Attendance Dashboard
-        </p>
-    </div>
-    <div class="col-md-4 text-md-right mt-3 mt-md-0">
-        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary btn-lg shadow-sm">
-            <i class="fas fa-camera mr-2"></i> Take Attendance Now
-        </a>
+<!-- Institutional Hero Welcome Banner -->
+<div class="institution-hero-banner">
+    <div class="row align-items-center">
+        <div class="col-lg-8">
+            <div class="hero-campus-badge">
+                <i class="fas fa-camera-retro"></i> Smart Face Attendance System &bull; Campus Portal
+            </div>
+            <h1 class="font-weight-bold mb-2" style="font-size: 1.85rem; letter-spacing: -0.02em;">
+                Welcome back, {{ request.user.faculty|default:request.user.username }}! 👋
+            </h1>
+            <p class="text-light mb-4" style="opacity: 0.9; font-size: 0.96rem; max-width: 680px; line-height: 1.55;">
+                <i class="far fa-calendar-alt text-info mr-1"></i> {{ today_date|date:"l, F d, Y" }} &bull; Academic Session 2026-2027 &bull; Real-time AI Face Recognition & Biometric Attendance Engine.
+            </p>
+
+            <div class="d-flex flex-wrap align-items-center" style="gap: 12px;">
+                <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary btn-lg shadow-sm">
+                    <i class="fas fa-camera mr-2"></i> Take Attendance (Class Photo)
+                </a>
+                <a href="{% url 'live_attendance' %}" class="btn btn-danger btn-lg font-weight-bold shadow-sm" style="border-radius: 10px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); border: none;">
+                    <i class="fas fa-video mr-2"></i> Live Camera Scanner
+                </a>
+                <a href="{% url 'add_student' %}" class="btn btn-outline-light btn-lg font-weight-bold" style="border-radius: 10px; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25);">
+                    <i class="fas fa-user-plus mr-1"></i> Add Students
+                </a>
+            </div>
+        </div>
+
+        <div class="col-lg-4 text-center text-lg-right mt-4 mt-lg-0 d-none d-lg-block">
+            <div class="p-3 d-inline-block text-left" style="background: rgba(255, 255, 255, 0.08); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.15); backdrop-filter: blur(8px); min-width: 260px;">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="pulse-dot mr-2"></div>
+                    <span class="small font-weight-bold text-light uppercase" style="letter-spacing: 0.05em;">AI ENGINE STATUS</span>
+                </div>
+                <div class="h5 font-weight-bold text-white mb-1">
+                    <i class="fas fa-shield-halved text-success mr-1"></i> Biometrics Active
+                </div>
+                <div class="small text-light" style="opacity: 0.85;">
+                    Registered Roster: <strong>{{ total_students }} Students</strong>
+                </div>
+                <div class="small text-light" style="opacity: 0.85;">
+                    Sessions Today: <strong>{{ today_sessions_count }} Conducted</strong>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- 4 Key Performance Metrics -->
+<!-- 4 Key Institutional KPI Metrics -->
 <div class="row mb-4">
+    <!-- Metric 1: Total Enrolled -->
     <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
-        <div class="stat-card">
+        <div class="stat-card card-primary">
             <div>
                 <div class="stat-label">Total Enrolled</div>
                 <div class="stat-number">{{ total_students }}</div>
-                <small class="text-muted">Registered in database</small>
+                <small class="text-muted font-weight-bold">
+                    <i class="fas fa-database text-primary mr-1"></i> In Institutional Database
+                </small>
             </div>
-            <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">
+            <div class="stat-icon" style="background: #eff6ff; color: #1e40af;">
                 <i class="fas fa-user-graduate"></i>
             </div>
         </div>
     </div>
+
+    <!-- Metric 2: Today's Sessions -->
     <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
-        <div class="stat-card">
+        <div class="stat-card card-indigo">
             <div>
                 <div class="stat-label">Sessions Today</div>
                 <div class="stat-number">{{ today_sessions_count }}</div>
-                <small class="text-muted">Classes recorded today</small>
+                <small class="text-muted font-weight-bold">
+                    <i class="fas fa-chalkboard-user text-indigo mr-1"></i> Classes Recorded Today
+                </small>
             </div>
-            <div class="stat-icon" style="background: #e0e7ff; color: #4f46e5;">
+            <div class="stat-icon" style="background: #e0e7ff; color: #4338ca;">
                 <i class="fas fa-clipboard-check"></i>
             </div>
         </div>
     </div>
+
+    <!-- Metric 3: Present Count -->
     <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
-        <div class="stat-card">
+        <div class="stat-card card-success">
             <div>
                 <div class="stat-label">Present Today</div>
                 <div class="stat-number text-success">{{ today_present }}</div>
-                <small class="text-danger font-weight-bold">{{ today_absent }} Absent</small>
+                <small class="text-danger font-weight-bold">
+                    <i class="fas fa-circle-xmark mr-1"></i> {{ today_absent }} Absent
+                </small>
             </div>
-            <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">
+            <div class="stat-icon" style="background: #d1fae5; color: #059669;">
                 <i class="fas fa-user-check"></i>
             </div>
         </div>
     </div>
+
+    <!-- Metric 4: Attendance Rate -->
     <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
-        <div class="stat-card">
-            <div>
-                <div class="stat-label">Today's Attendance Rate</div>
+        <div class="stat-card card-warning">
+            <div class="w-100 mr-2">
+                <div class="stat-label">Today's Turnout</div>
                 <div class="stat-number {% if attendance_rate >= 75 %}text-success{% elif attendance_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
                     {{ attendance_rate }}%
                 </div>
-                <div class="progress mt-2" style="height: 6px; width: 120px;">
-                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ attendance_rate }}%" aria-valuenow="{{ attendance_rate }}" aria-valuemin="0" aria-valuemax="100"></div>
+                <div class="progress mt-2" style="height: 7px; border-radius: 10px; background-color: #f1f5f9;">
+                    <div class="progress-bar {% if attendance_rate >= 75 %}bg-success{% elif attendance_rate >= 50 %}bg-warning{% else %}bg-danger{% endif %}" role="progressbar" style="width: {{ attendance_rate }}%" aria-valuenow="{{ attendance_rate }}" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
             </div>
             <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
@@ -76,21 +120,21 @@
     </div>
 </div>
 
-<!-- 4 Modern Action Cards -->
+<!-- 4 Modern Institutional Action Tiles -->
 <div class="row mb-5">
-    <!-- Action 1: Take Attendance -->
+    <!-- Tile 1: Take Attendance -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="action-card action-primary">
             <div>
                 <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">
+                    <div class="stat-icon" style="background: #eff6ff; color: #1e40af;">
                         <i class="fas fa-camera"></i>
                     </div>
-                    <span class="badge badge-info px-2 py-1">Recommended</span>
+                    <span class="badge badge-primary px-2 py-1 font-weight-bold" style="font-size: 0.75rem;">AI Vision</span>
                 </div>
-                <h5 class="font-weight-bold text-dark mb-2">Take Attendance</h5>
-                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
-                    Upload a classroom group photo. Our AI identifies all faces, marks present/absent, and lets you review & edit on the spot.
+                <h5 class="font-weight-bold text-dark mb-2">Classroom Photo AI</h5>
+                <p class="text-muted" style="font-size: 0.88rem; line-height: 1.55;">
+                    Upload a classroom group photo or webcam snapshot. AI detects all faces and marks present/absent with instant 1-click review.
                 </p>
             </div>
             <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary btn-block mt-3">
@@ -99,19 +143,40 @@
         </div>
     </div>
 
-    <!-- Action 2: Add Student (Excel + Drive Link) -->
+    <!-- Tile 2: Live Camera Kiosk -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="action-card action-amber" style="border-top-color: #dc2626;">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="stat-icon" style="background: #fee2e2; color: #dc2626;">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <span class="badge badge-danger px-2 py-1 font-weight-bold" style="font-size: 0.75rem;">Real-Time</span>
+                </div>
+                <h5 class="font-weight-bold text-dark mb-2">Live Camera Scanner</h5>
+                <p class="text-muted" style="font-size: 0.88rem; line-height: 1.55;">
+                    Turn laptop or webcam into an automated walk-in kiosk. Detects faces, shows bounding boxes, and marks attendance hands-free.
+                </p>
+            </div>
+            <a href="{% url 'live_attendance' %}" class="btn btn-danger btn-block mt-3 font-weight-bold" style="border-radius: 10px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); border: none;">
+                <i class="fas fa-circle-play mr-1"></i> Launch Scanner
+            </a>
+        </div>
+    </div>
+
+    <!-- Tile 3: Add Students & Excel Import -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="action-card action-success">
             <div>
                 <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">
+                    <div class="stat-icon" style="background: #d1fae5; color: #059669;">
                         <i class="fas fa-file-excel"></i>
                     </div>
-                    <span class="badge badge-success px-2 py-1">Bulk & Drive</span>
+                    <span class="badge badge-success px-2 py-1 font-weight-bold" style="font-size: 0.75rem;">Bulk & Drive</span>
                 </div>
-                <h5 class="font-weight-bold text-dark mb-2">Add Students</h5>
-                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
-                    Upload an Excel/CSV roster with Google Drive image links, or register individual students with Drive photo integration.
+                <h5 class="font-weight-bold text-dark mb-2">Student Enrollment</h5>
+                <p class="text-muted" style="font-size: 0.88rem; line-height: 1.55;">
+                    Register individual students or bulk-import entire class rosters from Excel/CSV with Google Drive photo link integration.
                 </p>
             </div>
             <a href="{% url 'add_student' %}" class="btn btn-modern-success btn-block mt-3">
@@ -120,44 +185,23 @@
         </div>
     </div>
 
-    <!-- Action 3: Edit Attendance -->
-    <div class="col-lg-3 col-md-6 mb-4">
-        <div class="action-card action-amber">
-            <div>
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
-                        <i class="fas fa-user-pen"></i>
-                    </div>
-                    <span class="badge badge-warning px-2 py-1">Manual Override</span>
-                </div>
-                <h5 class="font-weight-bold text-dark mb-2">Edit Attendance</h5>
-                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
-                    Easily toggle student attendance between Present and Absent for any period or date with 1-click controls.
-                </p>
-            </div>
-            <a href="{% url 'edit_attendance' %}" class="btn btn-outline-warning text-dark btn-block mt-3 font-weight-bold" style="border-radius: 10px; border-width: 2px;">
-                <i class="fas fa-pen-to-square mr-1"></i> Edit Records
-            </a>
-        </div>
-    </div>
-
-    <!-- Action 4: Attendance History & Records -->
+    <!-- Tile 4: Attendance History & Records -->
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="action-card action-indigo">
             <div>
                 <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="stat-icon" style="background: #e0e7ff; color: #4f46e5;">
+                    <div class="stat-icon" style="background: #e0e7ff; color: #4338ca;">
                         <i class="fas fa-table-list"></i>
                     </div>
-                    <span class="badge badge-secondary px-2 py-1">History</span>
+                    <span class="badge badge-secondary px-2 py-1 font-weight-bold" style="font-size: 0.75rem;">Analytics</span>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-2">Attendance Records</h5>
-                <p class="text-muted" style="font-size: 0.9rem; line-height: 1.5;">
-                    Search, filter, and inspect detailed attendance by Branch, Year, Section, Period, or Date with export options.
+                <p class="text-muted" style="font-size: 0.88rem; line-height: 1.55;">
+                    Filter, search, inspect, and export detailed attendance records by branch, year, section, period, or date with Excel export.
                 </p>
             </div>
             <a href="{% url 'searchattendence' %}" class="btn btn-outline-primary btn-block mt-3 font-weight-bold" style="border-radius: 10px; border-width: 2px;">
-                <i class="fas fa-magnifying-glass mr-1"></i> Search Records
+                <i class="fas fa-magnifying-glass mr-1"></i> View Records
             </a>
         </div>
     </div>
@@ -165,37 +209,42 @@
 
 <!-- Bottom Section: Today's Recorded Sessions & Enrolled Students -->
 <div class="row">
-    <!-- Today's Sessions -->
+    <!-- Today's Sessions Table -->
     <div class="col-lg-7 mb-4">
         <div class="card-modern h-100">
             <div class="card-header-modern">
-                <span class="d-flex align-items-center gap-2">
-                    <i class="fas fa-clock text-primary mr-2"></i> Today's Recorded Sessions
+                <span class="d-flex align-items-center">
+                    <i class="fas fa-clock text-primary mr-2"></i>
+                    <span>Today's Recorded Sessions</span>
                 </span>
                 <a href="{% url 'take_attendance' %}" class="btn btn-sm btn-outline-primary" style="border-radius: 8px;">
-                    <i class="fas fa-plus mr-1"></i> New Session
+                    <i class="fas fa-plus mr-1"></i> Record New Class
                 </a>
             </div>
             <div class="card-body-modern p-0">
                 {% if today_slots %}
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0" style="font-size: 0.92rem;">
-                            <thead class="thead-light">
+                        <table class="table table-modern mb-0">
+                            <thead>
                                 <tr>
-                                    <th>Branch</th>
-                                    <th>Year</th>
-                                    <th>Section</th>
+                                    <th>Department</th>
+                                    <th>Year & Section</th>
                                     <th>Period</th>
-                                    <th class="text-right">Action</th>
+                                    <th class="text-right">Manage</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for slot in today_slots %}
                                 <tr>
-                                    <td><span class="badge badge-primary px-2 py-1">{{ slot.branch }}</span></td>
-                                    <td>Year {{ slot.year }}</td>
-                                    <td>Section {{ slot.section }}</td>
-                                    <td><span class="badge badge-info px-2 py-1">Period {{ slot.period }}</span></td>
+                                    <td>
+                                        <span class="badge badge-dept">{{ slot.branch }}</span>
+                                    </td>
+                                    <td class="font-weight-bold text-dark">
+                                        Year {{ slot.year }} &bull; Sec {{ slot.section }}
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-info px-2 py-1">Period {{ slot.period }}</span>
+                                    </td>
                                     <td class="text-right">
                                         <a href="{% url 'edit_attendance' %}?branch={{ slot.branch }}&year={{ slot.year }}&section={{ slot.section }}&period={{ slot.period }}&date={{ today_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-warning text-dark font-weight-bold mr-1" style="border-radius: 6px;">
                                             <i class="fas fa-pencil mr-1"></i> Edit
@@ -211,53 +260,70 @@
                     </div>
                 {% else %}
                     <div class="text-center py-5 text-muted">
-                        <i class="fas fa-clipboard-list fa-3x mb-3 text-gray-300"></i>
-                        <p class="font-weight-bold mb-1">No attendance recorded yet for today</p>
-                        <small>Click "Take Attendance" above to upload a classroom photo and scan.</small>
+                        <div class="stat-icon mx-auto mb-3" style="background: #f1f5f9; color: #94a3b8; width: 64px; height: 64px; font-size: 1.8rem;">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <h6 class="font-weight-bold text-dark mb-1">No attendance recorded yet for today</h6>
+                        <p class="small text-muted mb-3">Click below to upload a classroom photo or launch the live camera.</p>
+                        <a href="{% url 'take_attendance' %}" class="btn btn-sm btn-modern-primary">
+                            <i class="fas fa-camera mr-1"></i> Take Attendance Now
+                        </a>
                     </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Recently Enrolled Students -->
+    <!-- Enrolled Students Summary -->
     <div class="col-lg-5 mb-4">
         <div class="card-modern h-100">
             <div class="card-header-modern">
-                <span class="d-flex align-items-center gap-2">
-                    <i class="fas fa-users text-success mr-2"></i> Enrolled Students
+                <span class="d-flex align-items-center">
+                    <i class="fas fa-users text-success mr-2"></i>
+                    <span>Enrolled Student Roster</span>
                 </span>
-                <a href="{% url 'student_directory' %}" class="btn btn-sm btn-outline-success" style="border-radius: 8px;">
+                <a href="{% url 'student_directory' %}" class="btn btn-sm btn-outline-success font-weight-bold" style="border-radius: 8px;">
                     View All ({{ total_students }})
                 </a>
             </div>
             <div class="card-body-modern p-0">
                 {% if recent_students %}
-                    <ul class="list-group list-group-flush">
+                    <div class="list-group list-group-flush">
                         {% for s in recent_students %}
-                        <li class="list-group-item d-flex align-items-center justify-content-between px-4 py-3">
+                        <div class="list-group-item d-flex align-items-center justify-content-between px-3 py-2 border-top-0">
                             <div class="d-flex align-items-center">
                                 <img src="{{ s.get_primary_photo_url }}" alt="avatar" class="student-avatar mr-3" onerror="this.src='/static/images/default_avatar.png'">
                                 <div>
-                                    <div class="font-weight-bold text-dark" style="font-size: 0.92rem;">
+                                    <div class="font-weight-bold text-dark" style="font-size: 0.91rem;">
                                         {{ s.name|default:s.registration_id }}
                                     </div>
-                                    <small class="text-muted font-weight-bold">
-                                        ID: {{ s.register_number|default:s.registration_id }} &bull; {{ s.branch }} Yr-{{ s.year }}{{ s.section }}
-                                    </small>
+                                    <div class="small text-muted">
+                                        ID: <strong>{{ s.register_number|default:s.registration_id }}</strong> &bull; <span class="badge badge-dept" style="font-size: 0.7rem;">{{ s.branch }}</span> Yr-{{ s.year }}{{ s.section }}
+                                    </div>
                                 </div>
                             </div>
-                            <span class="badge badge-light border text-muted">
-                                {% if s.profile_pic or s.photos.exists %}<i class="fas fa-check-circle text-success" title="Photo enrolled"></i> Photo{% else %}<span class="text-warning">No photo</span>{% endif %}
-                            </span>
-                        </li>
+                            <div>
+                                {% if s.profile_pic or s.photos.exists %}
+                                    <span class="badge badge-success px-2 py-1" style="font-size: 0.72rem;">
+                                        <i class="fas fa-circle-check mr-1"></i> Biometric Active
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-warning text-dark px-2 py-1" style="font-size: 0.72rem;">
+                                        <i class="fas fa-triangle-exclamation mr-1"></i> No Photo
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
                         {% endfor %}
-                    </ul>
+                    </div>
                 {% else %}
                     <div class="text-center py-5 text-muted">
-                        <i class="fas fa-user-plus fa-3x mb-3 text-gray-300"></i>
-                        <p class="font-weight-bold mb-1">No students enrolled yet</p>
-                        <a href="{% url 'add_student' %}" class="btn btn-sm btn-modern-success mt-2">Add First Student</a>
+                        <div class="stat-icon mx-auto mb-3" style="background: #f1f5f9; color: #94a3b8; width: 64px; height: 64px; font-size: 1.8rem;">
+                            <i class="fas fa-user-plus"></i>
+                        </div>
+                        <h6 class="font-weight-bold text-dark mb-1">No students registered yet</h6>
+                        <p class="small text-muted mb-3">Add students manually or import via Excel sheet.</p>
+                        <a href="{% url 'add_student' %}" class="btn btn-sm btn-modern-success">Add Students</a>
                     </div>
                 {% endif %}
             </div>

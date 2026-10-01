@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Create Faculty Account | Smart Face Attendance System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 4.6 & FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <style>
+        :root {
+            --brand-primary: #1e40af;
+            --brand-success: #059669;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #0b1329 0%, #0f172a 45%, #064e3b 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2.5rem 1rem;
+        }
+
+        .register-card {
+            width: 100%;
+            max-width: 500px;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 2.8rem 2.4rem;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .brand-crest-register {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin: 0 auto 1.25rem auto;
+            box-shadow: 0 10px 25px rgba(5, 150, 105, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .institution-tag {
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: #065f46;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: #d1fae5;
+            padding: 3px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .form-control-modern {
+            height: 46px !important;
+            border-radius: 10px;
+            border: 1.5px solid #cbd5e1;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.92rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control-modern:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.18);
+            outline: none;
+        }
+
+        .btn-modern-register {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: #ffffff;
+            font-weight: 700;
+            padding: 0.8rem;
+            border-radius: 10px;
+            border: none;
+            width: 100%;
+            box-shadow: 0 6px 18px rgba(5, 150, 105, 0.35);
+            transition: all 0.2s ease;
+            font-size: 1rem;
+            cursor: pointer !important;
+        }
+
+        .btn-modern-register:hover {
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(5, 150, 105, 0.45);
+        }
+    </style>
+</head>
+<body>
+    <div class="register-card">
+        <div class="text-center mb-4">
+            <div class="brand-crest-register">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="institution-tag">SMART FACE ATTENDANCE</div>
+            <h3 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">Faculty Account Registration</h3>
+            <p class="text-muted small mb-0">Enroll as a faculty member for automated attendance tracking</p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %} py-2 small rounded d-flex align-items-center mb-3" role="alert">
+                    <i class="fas {% if message.tags == 'error' %}fa-circle-exclamation mr-2{% else %}fa-circle-check mr-2{% endif %}"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST" action="{% url 'register' %}">
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="col-md-6 mb-3">
+                    <label class="small font-weight-bold text-dark mb-1">
+                        <i class="fas fa-user text-muted mr-1"></i> First Name
+                    </label>
+                    <input type="text" name="firstname" placeholder="First name" value="{{ entered_firstname|default:'' }}" class="form-control form-control-modern" required autofocus>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="small font-weight-bold text-dark mb-1">
+                        <i class="fas fa-user text-muted mr-1"></i> Last Name
+                    </label>
+                    <input type="text" name="lastname" placeholder="Last name" value="{{ entered_lastname|default:'' }}" class="form-control form-control-modern">
+                </div>
+            </div>
+
+            <div class="form-group mb-3">
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-user-tag text-muted mr-1"></i> Desired Username
+                </label>
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-light border-right-0" style="border-radius: 10px 0 0 10px; border: 1.5px solid #cbd5e1; border-right: none;"><i class="fas fa-at text-muted"></i></span>
+                    </div>
+                    <input type="text" name="username" placeholder="e.g. Renukrishna_S or renukrishna" value="{{ initial_username|default:'' }}" class="form-control form-control-modern border-left-0" style="border-radius: 0 10px 10px 0;" required>
+                </div>
+                <small class="text-muted" style="font-size: 0.74rem;">Can use letters, numbers, and underscores</small>
+            </div>
+
+            <div class="form-group mb-3">
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-envelope text-muted mr-1"></i> Institutional Email
+                </label>
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-light border-right-0" style="border-radius: 10px 0 0 10px; border: 1.5px solid #cbd5e1; border-right: none;"><i class="fas fa-envelope text-muted"></i></span>
+                    </div>
+                    <input type="email" name="email" placeholder="faculty@institution.edu" value="{{ initial_email|default:'' }}" class="form-control form-control-modern border-left-0" style="border-radius: 0 10px 10px 0;" required>
+                </div>
+            </div>
+
+            <div class="form-group mb-3">
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-phone text-muted mr-1"></i> Contact Phone <span class="text-muted font-weight-normal">(Optional)</span>
+                </label>
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-light border-right-0" style="border-radius: 10px 0 0 10px; border: 1.5px solid #cbd5e1; border-right: none;"><i class="fas fa-phone text-muted"></i></span>
+                    </div>
+                    <input type="text" name="phone" placeholder="9876543210" value="{{ entered_phone|default:'' }}" class="form-control form-control-modern border-left-0" style="border-radius: 0 10px 10px 0;">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="col-md-6 mb-3">
+                    <label class="small font-weight-bold text-dark mb-1">
+                        <i class="fas fa-key text-muted mr-1"></i> Password
+                    </label>
+                    <input type="password" name="password" placeholder="Min 6 characters" class="form-control form-control-modern" required minlength="6">
+                </div>
+                <div class="col-md-6 mb-4">
+                    <label class="small font-weight-bold text-dark mb-1">
+                        <i class="fas fa-check-double text-muted mr-1"></i> Confirm Password
+                    </label>
+                    <input type="password" name="confirm_password" placeholder="Confirm password" class="form-control form-control-modern" required minlength="6">
+                </div>
+            </div>
+
+            <button class="btn btn-modern-register mb-3" type="submit">
+                <i class="fas fa-user-check mr-2"></i> Register Account & Sign In
+            </button>
+
+            <div class="text-center pt-3 border-top">
+                <span class="small text-muted">Already registered as faculty?</span>
+                <a href="{% url 'login' %}" class="small font-weight-bold text-primary text-decoration-none ml-1">
+                    Log In to Portal
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.querySelector('form').addEventListener('submit', function() {
+            var btn = document.querySelector('.btn-modern-register');
+            if (btn) {
+                btn.style.opacity = '0.7';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Registering Account...';
+            }
+        });
+    </script>
+</body>
+</html>

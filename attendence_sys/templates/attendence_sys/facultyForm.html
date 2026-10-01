@@ -1,16 +1,16 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Faculty Profile | Face Attendance System{% endblock %}
+{% block title %}Faculty Profile | Smart Face Attendance System{% endblock %}
 
 {% block content %}
 <div class="row align-items-center mb-4">
     <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
-            <i class="fas fa-id-card text-primary mr-2"></i> Faculty Account Profile
+        <h2 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">
+            <i class="fas fa-id-card text-primary mr-2"></i> Faculty Profile & Credentials
         </h2>
         <p class="text-muted mb-0">
-            View and manage your faculty profile details and profile picture.
+            View and manage your academic faculty profile details, contact information, and authentication security.
         </p>
     </div>
     <div class="col-md-4 text-md-right mt-3 mt-md-0">
@@ -21,58 +21,61 @@
 </div>
 
 <div class="row">
-    <!-- Left Column: Profile Card -->
+    <!-- Left Column: Faculty ID Card -->
     <div class="col-lg-4 mb-4">
         <div class="card-modern text-center p-4">
             <div class="position-relative d-inline-block mx-auto mb-3">
                 {% if request.user.faculty.profile_pic %}
-                    <img class="img-fluid rounded-circle shadow-sm" 
+                    <img class="img-fluid rounded-circle" 
                          src="{{ request.user.faculty.profile_pic.url }}" 
                          alt="Faculty Profile Picture"
-                         style="width: 160px; height: 160px; object-fit: cover; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;">
+                         style="width: 140px; height: 140px; object-fit: cover; border: 4px solid #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important;">
                 {% else %}
-                    <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto shadow-sm"
-                         style="width: 160px; height: 160px; background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); color: #4338ca; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto"
+                         style="width: 140px; height: 140px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border: 4px solid #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;">
                         <i class="fas fa-user-tie fa-4x"></i>
                     </div>
                 {% endif %}
             </div>
 
-            <h4 class="font-weight-bold text-dark mb-1">
+            <h4 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.01em;">
                 {{ request.user.faculty.firstname|default:request.user.username }} {{ request.user.faculty.lastname|default:"" }}
             </h4>
-            <p class="badge badge-primary px-3 py-1 font-weight-normal mb-2" style="font-size: 0.85rem;">
-                <i class="fas fa-chalkboard-user mr-1"></i> Faculty Member
-            </p>
+            <div class="mb-2">
+                <span class="badge badge-primary px-3 py-1 font-weight-bold" style="font-size: 0.8rem;">
+                    <i class="fas fa-chalkboard-user mr-1"></i> Faculty &bull; Campus Portal
+                </span>
+            </div>
             <p class="text-muted small mb-3">
-                <i class="fas fa-envelope mr-1 text-primary"></i> {{ request.user.faculty.email|default:request.user.email|default:"No email provided" }}
+                <i class="fas fa-envelope mr-1 text-primary"></i> {{ request.user.faculty.email|default:request.user.email|default:"No email registered" }}
             </p>
 
             <div class="border-top pt-3 text-left small text-muted">
-                <div class="d-flex justify-content-between py-1">
-                    <span><i class="fas fa-user mr-1 text-muted"></i> Username:</span>
-                    <strong class="text-dark">{{ request.user.username }}</strong>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span><i class="fas fa-user-tag mr-2 text-primary"></i> Portal Username:</span>
+                    <strong class="text-dark font-monospace">{{ request.user.username }}</strong>
                 </div>
                 {% if request.user.faculty.phone %}
-                <div class="d-flex justify-content-between py-1">
-                    <span><i class="fas fa-phone mr-1 text-muted"></i> Phone:</span>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span><i class="fas fa-phone mr-2 text-success"></i> Phone Number:</span>
                     <strong class="text-dark">{{ request.user.faculty.phone }}</strong>
                 </div>
                 {% endif %}
-                <div class="d-flex justify-content-between py-1">
-                    <span><i class="fas fa-calendar-check mr-1 text-muted"></i> Active Since:</span>
+                <div class="d-flex justify-content-between py-2">
+                    <span><i class="fas fa-calendar-check mr-2 text-info"></i> Member Since:</span>
                     <strong class="text-dark">{{ request.user.date_joined|date:"M Y" }}</strong>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Right Column: Edit Profile Form -->
+    <!-- Right Column: Edit Profile & Security -->
     <div class="col-lg-8 mb-4">
-        <div class="card-modern">
+        <!-- Edit Profile Form -->
+        <div class="card-modern mb-4">
             <div class="card-header-modern bg-white">
                 <span class="font-weight-bold text-dark">
-                    <i class="fas fa-pen-to-square text-primary mr-2"></i> Update Profile Details
+                    <i class="fas fa-pen-to-square text-primary mr-2"></i> Update Faculty Details
                 </span>
             </div>
             <div class="card-body-modern p-4">
@@ -81,7 +84,9 @@
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">First Name</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-user text-primary mr-1"></i> First Name
+                            </label>
                             {{ form.firstname }}
                             {% if form.firstname.errors %}
                                 <div class="text-danger small mt-1">{{ form.firstname.errors }}</div>
@@ -89,7 +94,9 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">Last Name</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-user text-primary mr-1"></i> Last Name
+                            </label>
                             {{ form.lastname }}
                             {% if form.lastname.errors %}
                                 <div class="text-danger small mt-1">{{ form.lastname.errors }}</div>
@@ -97,7 +104,9 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">Email Address</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-envelope text-primary mr-1"></i> Institutional Email
+                            </label>
                             {{ form.email }}
                             {% if form.email.errors %}
                                 <div class="text-danger small mt-1">{{ form.email.errors }}</div>
@@ -105,19 +114,23 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">Phone Number</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-phone text-primary mr-1"></i> Contact Phone
+                            </label>
                             {{ form.phone }}
                             {% if form.phone.errors %}
                                 <div class="text-danger small mt-1">{{ form.phone.errors }}</div>
                             {% endif %}
                         </div>
 
-                        <div class="col-12 mb-4">
-                            <label class="font-weight-bold text-dark small">Profile Picture</label>
-                            <div class="p-3 border rounded bg-light" style="border-radius: 10px !important;">
+                        <div class="col-12 mb-3">
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-image text-primary mr-1"></i> Update Profile Picture
+                            </label>
+                            <div class="p-3 border rounded bg-light" style="border-radius: 12px !important;">
                                 {{ form.profile_pic }}
                                 <small class="form-text text-muted mt-2">
-                                    <i class="fas fa-circle-info mr-1"></i> Upload a clear headshot or avatar photo (JPEG, PNG).
+                                    <i class="fas fa-circle-info mr-1"></i> Recommended: Clear portrait headshot (JPEG, PNG).
                                 </small>
                             </div>
                             {% if form.profile_pic.errors %}
@@ -130,8 +143,47 @@
                         <a href="{% url 'home' %}" class="btn btn-outline-secondary px-4 py-2 font-weight-bold" style="border-radius: 8px;">
                             Cancel
                         </a>
-                        <button type="submit" class="btn btn-modern-primary px-4 py-2 shadow-sm font-weight-bold" style="border-radius: 8px; cursor: pointer; z-index: 10;">
-                            <i class="fas fa-floppy-disk mr-2"></i> Save Changes
+                        <button type="submit" class="btn btn-modern-primary px-4 py-2 font-weight-bold">
+                            <i class="fas fa-floppy-disk mr-2"></i> Save Profile Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Security & Password Change Card -->
+        <div class="card-modern">
+            <div class="card-header-modern bg-white">
+                <span class="font-weight-bold text-dark">
+                    <i class="fas fa-shield-halved text-warning mr-2"></i> Security & Password Management
+                </span>
+            </div>
+            <div class="card-body-modern p-4">
+                <form method="POST" action="{% url 'change_password' %}">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-lock text-muted mr-1"></i> Current Password
+                            </label>
+                            <input type="password" name="old_password" class="form-control form-control-modern" placeholder="Current password" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-key text-warning mr-1"></i> New Password
+                            </label>
+                            <input type="password" name="new_password" class="form-control form-control-modern" placeholder="Min 6 characters" minlength="6" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-check-double text-success mr-1"></i> Confirm Password
+                            </label>
+                            <input type="password" name="confirm_password" class="form-control form-control-modern" placeholder="Confirm new password" minlength="6" required>
+                        </div>
+                    </div>
+                    <div class="text-right pt-2 border-top">
+                        <button type="submit" class="btn btn-outline-warning text-dark font-weight-bold px-4 py-2" style="border-radius: 8px; border-width: 1.5px;">
+                            <i class="fas fa-key mr-1"></i> Update Password
                         </button>
                     </div>
                 </form>

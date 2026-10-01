@@ -1,20 +1,23 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Student Directory | Face Attendance System{% endblock %}
+{% block title %}Student Directory | Smart Face Attendance System{% endblock %}
 
 {% block content %}
 <div class="row align-items-center mb-4">
-    <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
+    <div class="col-md-7">
+        <h2 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">
             <i class="fas fa-users text-primary mr-2"></i> Enrolled Student Directory
         </h2>
         <p class="text-muted mb-0">
-            Browse, search, edit, and delete enrolled students across branches, years, and sections.
+            Search, filter, manage, and inspect enrolled students across all departments, years, and sections.
         </p>
     </div>
-    <div class="col-md-4 text-md-right mt-3 mt-md-0">
-        <a href="{% url 'add_student' %}" class="btn btn-modern-success font-weight-bold" style="border-radius: 10px;">
+    <div class="col-md-5 text-md-right mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end" style="gap: 8px;">
+        <a href="{% url 'download_excel_template' %}" class="btn btn-outline-success font-weight-bold" style="border-radius: 10px;">
+            <i class="fas fa-file-excel mr-1"></i> Excel Template
+        </a>
+        <a href="{% url 'add_student' %}" class="btn btn-modern-success font-weight-bold">
             <i class="fas fa-user-plus mr-1"></i> Add / Import Students
         </a>
     </div>
@@ -25,19 +28,18 @@
     <div class="card-body-modern py-3">
         <form method="GET" action="{% url 'student_directory' %}" class="row align-items-end">
             <div class="col-md-4 mb-2 mb-md-0">
-                <label class="small font-weight-bold text-dark mb-1">Search Student</label>
-                <div class="input-group">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text bg-white border-right-0"><i class="fas fa-magnifying-glass text-muted"></i></span>
-                    </div>
-                    <input type="text" name="q" class="form-control form-control-modern border-left-0" placeholder="Name or Registration ID..." value="{{ search_query }}">
-                </div>
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-magnifying-glass text-primary mr-1"></i> Search Student
+                </label>
+                <input type="text" name="q" class="form-control form-control-modern" placeholder="Search by name, roll number, or ID..." value="{{ search_query }}">
             </div>
 
             <div class="col-md-2 col-4 mb-2 mb-md-0">
-                <label class="small font-weight-bold text-dark mb-1">Branch</label>
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-building text-primary mr-1"></i> Branch
+                </label>
                 <select name="branch" class="form-control form-control-modern">
-                    <option value="">All</option>
+                    <option value="">All Branches</option>
                     {% for b in branches %}
                         <option value="{{ b }}" {% if selected_branch == b %}selected{% endif %}>{{ b }}</option>
                     {% endfor %}
@@ -45,9 +47,11 @@
             </div>
 
             <div class="col-md-2 col-4 mb-2 mb-md-0">
-                <label class="small font-weight-bold text-dark mb-1">Year</label>
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-calendar-days text-primary mr-1"></i> Year
+                </label>
                 <select name="year" class="form-control form-control-modern">
-                    <option value="">All</option>
+                    <option value="">All Years</option>
                     {% for y in years %}
                         <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>Year {{ y }}</option>
                     {% endfor %}
@@ -55,9 +59,11 @@
             </div>
 
             <div class="col-md-2 col-4 mb-2 mb-md-0">
-                <label class="small font-weight-bold text-dark mb-1">Section</label>
+                <label class="small font-weight-bold text-dark mb-1">
+                    <i class="fas fa-users-rectangle text-primary mr-1"></i> Section
+                </label>
                 <select name="section" class="form-control form-control-modern">
-                    <option value="">All</option>
+                    <option value="">All Sections</option>
                     {% for sec in sections %}
                         <option value="{{ sec }}" {% if selected_section == sec %}selected{% endif %}>Sec {{ sec }}</option>
                     {% endfor %}
@@ -73,14 +79,14 @@
     </div>
 </div>
 
-<!-- Student List Table with Bulk Delete -->
+<!-- Student List Table with Bulk Selection -->
 <form method="POST" action="{% url 'bulk_delete_students' %}" id="bulkDeleteForm">
     {% csrf_token %}
     <div class="card-modern mb-5">
         <div class="card-header-modern bg-white">
-            <div class="d-flex align-items-center">
-                <span class="font-weight-bold text-dark mr-3">
-                    Total Students: <span class="badge badge-primary px-2 py-1 ml-1">{{ total_count }}</span>
+            <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+                <span class="font-weight-bold text-dark">
+                    Total Enrolled Students: <span class="badge badge-primary px-2 py-1 ml-1">{{ total_count }}</span>
                 </span>
                 <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" id="bulkDeleteBtn" style="border-radius: 8px; display: none;" onclick="confirmBulkDelete()">
                     <i class="fas fa-trash-can mr-1"></i> Delete Selected (<span id="selectedCount">0</span>)
@@ -88,7 +94,7 @@
             </div>
             <div>
                 <a href="{% url 'download_excel_template' %}" class="btn btn-sm btn-outline-success font-weight-bold" style="border-radius: 8px;">
-                    <i class="fas fa-file-excel mr-1"></i> Excel Template
+                    <i class="fas fa-file-excel mr-1"></i> Download Template
                 </a>
             </div>
         </div>
@@ -96,52 +102,54 @@
         <div class="card-body-modern p-0">
             {% if students %}
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" style="font-size: 0.94rem;">
-                    <thead class="thead-light">
+                <table class="table table-modern mb-0" style="font-size: 0.93rem;">
+                    <thead>
                         <tr>
                             <th style="width: 40px;" class="text-center">
-                                <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
+                                <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)" style="cursor: pointer;">
                             </th>
-                            <th style="width: 70px;">Photo</th>
+                            <th style="width: 65px;">Photo</th>
                             <th>Registration ID</th>
                             <th>Student Name</th>
-                            <th>Class</th>
-                            <th>Contact</th>
-                            <th class="text-center">Photo Status</th>
-                            <th class="text-right" style="width: 180px;">Actions</th>
+                            <th>Department & Class</th>
+                            <th>Contact Info</th>
+                            <th class="text-center">Biometrics</th>
+                            <th class="text-right" style="width: 170px;">Manage</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for s in students %}
                         <tr>
                             <td class="text-center">
-                                <input type="checkbox" name="selected_students" value="{{ s.id }}" class="student-select-cb" onclick="updateSelection()">
+                                <input type="checkbox" name="selected_students" value="{{ s.id }}" class="student-select-cb" onclick="updateSelection()" style="cursor: pointer;">
                             </td>
                             <td>
                                 <img src="{{ s.get_primary_photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
                             </td>
                             <td class="font-weight-bold text-dark">
-                                {{ s.register_number|default:s.registration_id|default:"-" }}
+                                <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">
+                                    {{ s.register_number|default:s.registration_id|default:"-" }}
+                                </span>
                             </td>
-                            <td class="font-weight-bold">
+                            <td class="font-weight-bold text-dark">
                                 {{ s.name|default:s.firstname|default:"Student" }}
                             </td>
                             <td>
-                                <span class="badge badge-primary px-2 py-1 mr-1">{{ s.branch|default:s.department }}</span>
-                                <span class="text-muted">Yr {{ s.year }} &bull; Sec {{ s.section }}</span>
+                                <span class="badge badge-dept mr-1">{{ s.branch|default:s.department }}</span>
+                                <span class="text-muted font-weight-bold">Yr {{ s.year }} &bull; Sec {{ s.section }}</span>
                             </td>
                             <td>
-                                <div class="small">
-                                    {% if s.email %}<i class="fas fa-envelope mr-1 text-muted"></i> {{ s.email }}<br>{% endif %}
-                                    {% if s.phone %}<i class="fas fa-phone mr-1 text-muted"></i> {{ s.phone }}{% endif %}
+                                <div class="small text-muted">
+                                    {% if s.email %}<i class="fas fa-envelope mr-1 text-primary"></i> {{ s.email }}<br>{% endif %}
+                                    {% if s.phone %}<i class="fas fa-phone mr-1 text-success"></i> {{ s.phone }}{% endif %}
                                     {% if not s.email and not s.phone %}<span class="text-muted">-</span>{% endif %}
                                 </div>
                             </td>
                             <td class="text-center">
                                 {% if s.profile_pic or s.photos.exists %}
-                                    <span class="badge badge-success px-2 py-1"><i class="fas fa-check mr-1"></i> Enrolled</span>
+                                    <span class="badge badge-success px-2 py-1"><i class="fas fa-check mr-1"></i> Active</span>
                                 {% else %}
-                                    <span class="badge badge-warning px-2 py-1"><i class="fas fa-xmark mr-1"></i> Missing</span>
+                                    <span class="badge badge-warning text-dark px-2 py-1"><i class="fas fa-triangle-exclamation mr-1"></i> Missing</span>
                                 {% endif %}
                             </td>
                             <td class="text-right">
@@ -159,7 +167,9 @@
             </div>
             {% else %}
             <div class="text-center py-5 text-muted">
-                <i class="fas fa-user-slash fa-3x mb-3 text-gray-300"></i>
+                <div class="stat-icon mx-auto mb-3" style="background: #f1f5f9; color: #94a3b8; width: 64px; height: 64px; font-size: 1.8rem;">
+                    <i class="fas fa-users-slash"></i>
+                </div>
                 <h5 class="font-weight-bold text-dark mb-1">No Students Match Your Query</h5>
                 <p class="small text-muted mb-3">Try adjusting your search criteria or add new students.</p>
                 <a href="{% url 'add_student' %}" class="btn btn-modern-success">Add Students Now</a>

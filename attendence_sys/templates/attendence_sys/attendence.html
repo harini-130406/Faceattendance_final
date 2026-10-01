@@ -1,72 +1,90 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Attendance Records | Face Attendance System{% endblock %}
+{% block title %}Attendance Records & History | Smart Face Attendance System{% endblock %}
 
 {% block content %}
 <div class="row align-items-center mb-4">
-    <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
-            <i class="fas fa-clipboard-list text-primary mr-2"></i> Attendance Records & History
+    <div class="col-md-7">
+        <h2 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">
+            <i class="fas fa-clipboard-list text-primary mr-2"></i> Institutional Attendance Records
         </h2>
         <p class="text-muted mb-0">
-            View, filter, and inspect historical attendance sessions. Click "Edit Session" on any record to make manual adjustments.
+            Audit, filter, and inspect historical attendance sessions across all branches, academic years, and periods.
         </p>
     </div>
-    <div class="col-md-4 text-md-right mt-3 mt-md-0">
-        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary font-weight-bold mr-2" style="border-radius: 10px;">
+    <div class="col-md-5 text-md-right mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end" style="gap: 8px;">
+        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary font-weight-bold shadow-sm">
             <i class="fas fa-camera mr-1"></i> Take Attendance (AI)
         </a>
         <button class="btn btn-outline-secondary font-weight-bold" onclick="window.print()" style="border-radius: 10px;">
-            <i class="fas fa-print mr-1"></i> Print
+            <i class="fas fa-print mr-1"></i> Print Report
         </button>
     </div>
 </div>
 
-<!-- KPI Summary Cards -->
+<!-- KPI Summary Metrics -->
 <div class="row mb-4">
-    <div class="col-md-3 col-6 mb-3">
-        <div class="stat-card p-3">
+    <div class="col-xl-3 col-sm-6 mb-3">
+        <div class="stat-card p-3 card-primary">
             <div>
                 <div class="stat-label">Total Records</div>
-                <div class="h4 font-weight-bold mb-0 text-dark">{{ total_count }}</div>
+                <div class="h3 font-weight-bold mb-0 text-dark">{{ total_count }}</div>
+                <small class="text-muted font-weight-bold">Archived session logs</small>
             </div>
-            <i class="fas fa-list-check text-primary fa-lg"></i>
+            <div class="stat-icon" style="background: #eff6ff; color: #1e40af; width: 48px; height: 48px; font-size: 1.3rem;">
+                <i class="fas fa-list-check"></i>
+            </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
-        <div class="stat-card p-3">
+    <div class="col-xl-3 col-sm-6 mb-3">
+        <div class="stat-card p-3 card-success">
             <div>
                 <div class="stat-label">Present Count</div>
-                <div class="h4 font-weight-bold mb-0 text-success">{{ present_count }}</div>
+                <div class="h3 font-weight-bold mb-0 text-success">{{ present_count }}</div>
+                <small class="text-success font-weight-bold"><i class="fas fa-check-circle mr-1"></i>Verified presence</small>
             </div>
-            <i class="fas fa-circle-check text-success fa-lg"></i>
+            <div class="stat-icon" style="background: #d1fae5; color: #059669; width: 48px; height: 48px; font-size: 1.3rem;">
+                <i class="fas fa-circle-check"></i>
+            </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
-        <div class="stat-card p-3">
+    <div class="col-xl-3 col-sm-6 mb-3">
+        <div class="stat-card p-3 card-warning">
             <div>
                 <div class="stat-label">Absent Count</div>
-                <div class="h4 font-weight-bold mb-0 text-danger">{{ absent_count }}</div>
+                <div class="h3 font-weight-bold mb-0 text-danger">{{ absent_count }}</div>
+                <small class="text-danger font-weight-bold"><i class="fas fa-circle-xmark mr-1"></i>Unexcused / Absent</small>
             </div>
-            <i class="fas fa-circle-xmark text-danger fa-lg"></i>
+            <div class="stat-icon" style="background: #fee2e2; color: #dc2626; width: 48px; height: 48px; font-size: 1.3rem;">
+                <i class="fas fa-circle-xmark"></i>
+            </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
-        <div class="stat-card p-3">
-            <div>
-                <div class="stat-label">Attendance Rate</div>
-                <div class="h4 font-weight-bold mb-0 {% if attendance_percentage >= 75 %}text-success{% else %}text-warning{% endif %}">{{ attendance_percentage }}%</div>
+    <div class="col-xl-3 col-sm-6 mb-3">
+        <div class="stat-card p-3 card-indigo">
+            <div class="w-100 mr-2">
+                <div class="stat-label">Turnout Rate</div>
+                <div class="h3 font-weight-bold mb-0 {% if attendance_percentage >= 75 %}text-success{% else %}text-warning{% endif %}">
+                    {{ attendance_percentage }}%
+                </div>
+                <div class="progress mt-2" style="height: 6px; border-radius: 8px;">
+                    <div class="progress-bar {% if attendance_percentage >= 75 %}bg-success{% else %}bg-warning{% endif %}" role="progressbar" style="width: {{ attendance_percentage }}%"></div>
+                </div>
             </div>
-            <i class="fas fa-percent text-warning fa-lg"></i>
+            <div class="stat-icon" style="background: #e0e7ff; color: #4338ca; width: 48px; height: 48px; font-size: 1.3rem;">
+                <i class="fas fa-chart-pie"></i>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Search & Filter Card -->
+<!-- Filter Criteria Card -->
 <div class="card-modern mb-4">
-    <div class="card-header-modern bg-light py-2">
-        <span class="small font-weight-bold text-dark"><i class="fas fa-filter text-primary mr-1"></i> Filter Records</span>
+    <div class="card-header-modern bg-white py-2">
+        <span class="small font-weight-bold text-dark">
+            <i class="fas fa-filter text-primary mr-1"></i> Search & Filter Records
+        </span>
     </div>
     <div class="card-body-modern py-3">
         <form method="GET" class="form-row align-items-end">
@@ -78,49 +96,55 @@
             {% endfor %}
             <div class="col-md-2 col-sm-4 col-12 mb-2">
                 <button class="btn btn-modern-primary btn-block" type="submit">
-                    <i class="fas fa-magnifying-glass mr-1"></i> Search
+                    <i class="fas fa-magnifying-glass mr-1"></i> Filter Records
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Attendance Table -->
+<!-- Attendance Records Table -->
 <div class="card-modern mb-5">
     <div class="card-header-modern bg-white">
         <span class="font-weight-bold text-dark">
-            Attendance Log Entries ({{ attendences|length }})
+            <i class="fas fa-table text-primary mr-2"></i> Attendance Log Entries (<span class="badge badge-primary px-2 py-1">{{ attendences|length }}</span>)
         </span>
     </div>
     <div class="card-body-modern p-0">
         {% if attendences %}
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="font-size: 0.94rem;">
-                <thead class="thead-light">
+            <table class="table table-modern mb-0" style="font-size: 0.93rem;">
+                <thead>
                     <tr>
                         <th>Date</th>
                         <th>Student ID</th>
-                        <th>Branch</th>
-                        <th>Year</th>
+                        <th>Department</th>
+                        <th>Academic Year</th>
                         <th>Section</th>
                         <th>Period</th>
                         <th>Status</th>
-                        <th class="text-right">Action</th>
+                        <th class="text-right">Session Edit</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in attendences %}
                     <tr>
                         <td class="font-weight-bold text-dark">
-                            {{ item.date|default:"-" }}
+                            <i class="far fa-calendar text-muted mr-1"></i> {{ item.date|default:"-" }}
                         </td>
-                        <td class="font-weight-bold text-primary">
-                            {{ item.Student_ID }}
+                        <td class="font-weight-bold text-dark">
+                            <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">
+                                {{ item.Student_ID }}
+                            </span>
                         </td>
-                        <td><span class="badge badge-primary px-2 py-1">{{ item.branch }}</span></td>
+                        <td>
+                            <span class="badge badge-dept">{{ item.branch }}</span>
+                        </td>
                         <td>Year {{ item.year }}</td>
                         <td>Section {{ item.section }}</td>
-                        <td><span class="badge badge-info px-2 py-1">Period {{ item.period }}</span></td>
+                        <td>
+                            <span class="badge badge-info px-2 py-1">Period {{ item.period }}</span>
+                        </td>
                         <td>
                             {% if item.status == 'Present' %}
                                 <span class="badge-present">
@@ -144,7 +168,9 @@
         </div>
         {% else %}
         <div class="text-center py-5 text-muted">
-            <i class="fas fa-clipboard-question fa-3x mb-3 text-gray-300"></i>
+            <div class="stat-icon mx-auto mb-3" style="background: #f1f5f9; color: #94a3b8; width: 64px; height: 64px; font-size: 1.8rem;">
+                <i class="fas fa-clipboard-question"></i>
+            </div>
             <h5 class="font-weight-bold text-dark mb-1">No Attendance Records Found</h5>
             <p class="small text-muted mb-3">No attendance data matches the applied filters.</p>
             <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary">Take Attendance Now</a>
@@ -156,7 +182,7 @@
 
 {% block extra_js %}
 <script>
-// Style filter inputs automatically
+// Ensure filter inputs receive modern styling
 document.addEventListener("DOMContentLoaded", function() {
     var inputs = document.querySelectorAll("form input, form select");
     inputs.forEach(function(el) {

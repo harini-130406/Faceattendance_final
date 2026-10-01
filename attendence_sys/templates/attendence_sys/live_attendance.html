@@ -1,0 +1,1035 @@
+{% extends 'attendence_sys/main.html' %}
+{% load static %}
+
+{% block title %}Live Camera Attendance | Face Attendance System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .live-camera-wrapper {
+        position: relative;
+        width: 100%;
+        background: #090d16;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        aspect-ratio: 4 / 3;
+        max-height: 540px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #webcamVideo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(1);
+        transition: transform 0.2s ease;
+    }
+
+    #webcamVideo.mirrored {
+        transform: scaleX(-1);
+    }
+
+    #overlayCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .camera-hud {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    .camera-hud > * {
+        pointer-events: auto;
+    }
+
+    .hud-badge {
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(8px);
+        padding: 6px 14px;
+        border-radius: 20px;
+        color: #f8fafc;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #ef4444;
+        display: inline-block;
+        box-shadow: 0 0 10px #ef4444;
+        animation: livePulse 1.4s infinite;
+    }
+
+    .pulse-dot.scanning {
+        background-color: #10b981;
+        box-shadow: 0 0 10px #10b981;
+    }
+
+    @keyframes livePulse {
+        0% { transform: scale(0.9); opacity: 0.8; }
+        50% { transform: scale(1.3); opacity: 1; }
+        100% { transform: scale(0.9); opacity: 0.8; }
+    }
+
+    .scan-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, #38bdf8, #10b981, transparent);
+        box-shadow: 0 0 12px #38bdf8;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    .scanning-active .scan-line {
+        opacity: 1;
+        animation: scanSweep 2.2s linear infinite;
+    }
+
+    @keyframes scanSweep {
+        0% { top: 0%; }
+        50% { top: 98%; }
+        100% { top: 0%; }
+    }
+
+    .camera-placeholder {
+        position: absolute;
+        text-align: center;
+        color: #94a3b8;
+        z-index: 2;
+    }
+
+    /* Activity Feed & Student Cards */
+    .present-student-card {
+        background: #ffffff;
+        border-left: 4px solid #10b981;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        animation: slideInRight 0.3s ease;
+        transition: all 0.2s ease;
+    }
+
+    .present-student-card:hover {
+        transform: translateX(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    }
+
+    @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+
+    .roster-scroll {
+        max-height: 480px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .roster-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+    .roster-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .status-toggle-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row align-items-center mb-4">
+    <div class="col-lg-8">
+        <h2 class="font-weight-bold text-dark mb-1">
+            <i class="fas fa-video text-danger mr-2"></i> Live Camera Attendance
+        </h2>
+        <p class="text-muted mb-0">
+            Stream live video from your webcam or classroom camera. The AI automatically detects faces in real-time, matches registered students, and updates attendance live.
+        </p>
+    </div>
+    <div class="col-lg-4 text-lg-right mt-3 mt-lg-0">
+        <a href="{% url 'take_attendance' %}" class="btn btn-outline-secondary font-weight-bold mr-2" style="border-radius: 10px;">
+            <i class="fas fa-arrow-left mr-1"></i> Photo Upload Mode
+        </a>
+        <a href="{% url 'searchattendence' %}" class="btn btn-outline-primary font-weight-bold" style="border-radius: 10px;">
+            <i class="fas fa-list-check mr-1"></i> View Records
+        </a>
+    </div>
+</div>
+
+<!-- Class Selection Bar -->
+<div class="card-modern mb-4">
+    <div class="card-header-modern bg-light py-2">
+        <span class="small font-weight-bold text-dark">
+            <i class="fas fa-sliders text-primary mr-2"></i> Attendance Configuration & Session Details
+        </span>
+        <span class="badge badge-primary px-3 py-1 font-weight-bold" id="classRosterCountBadge">
+            {{ total_enrolled }} Students Enrolled
+        </span>
+    </div>
+    <div class="card-body-modern py-3">
+        <div class="row align-items-end">
+            <div class="col-md-3 col-sm-6 mb-2">
+                <label class="small font-weight-bold text-dark mb-1">Branch / Dept</label>
+                <select id="selectBranch" class="form-control form-control-modern form-control-sm">
+                    {% for b in branches %}
+                        <option value="{{ b }}" {% if selected_branch == b %}selected{% endif %}>{{ b }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-6 mb-2">
+                <label class="small font-weight-bold text-dark mb-1">Year</label>
+                <select id="selectYear" class="form-control form-control-modern form-control-sm">
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>Year {{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-6 mb-2">
+                <label class="small font-weight-bold text-dark mb-1">Section</label>
+                <select id="selectSection" class="form-control form-control-modern form-control-sm">
+                    {% for sec in sections %}
+                        <option value="{{ sec }}" {% if selected_section == sec %}selected{% endif %}>Section {{ sec }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-6 mb-2">
+                <label class="small font-weight-bold text-dark mb-1">Period</label>
+                <select id="selectPeriod" class="form-control form-control-modern form-control-sm">
+                    {% for p in periods %}
+                        <option value="{{ p }}" {% if selected_period == p %}selected{% endif %}>Period {{ p }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 col-sm-12 mb-2">
+                <label class="small font-weight-bold text-dark mb-1">Date</label>
+                <input type="date" id="selectDate" class="form-control form-control-modern form-control-sm" value="{{ selected_date|default:today_str }}">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Live Camera View & Roster Grid -->
+<div class="row">
+    <!-- LEFT: LIVE WEBCAM VIEWFINDER & CONTROLS -->
+    <div class="col-lg-7 mb-4">
+        <div class="card-modern h-100">
+            <div class="card-header-modern d-flex justify-content-between align-items-center">
+                <span class="font-weight-bold text-dark">
+                    <i class="fas fa-camera text-primary mr-2"></i> Live Video Feed
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="mirrorBtn" title="Mirror / Flip Video" style="border-radius: 8px;">
+                        <i class="fas fa-arrows-left-right"></i> Flip
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="soundToggleBtn" title="Audio Chime" style="border-radius: 8px;">
+                        <i class="fas fa-volume-high text-success" id="soundIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-body-modern p-3">
+                <!-- Camera Video Box -->
+                <div class="live-camera-wrapper" id="cameraWrapper">
+                    <div class="scan-line"></div>
+                    
+                    <!-- HUD Overlays -->
+                    <div class="camera-hud">
+                        <div class="hud-badge">
+                            <span class="pulse-dot" id="statusPulseDot"></span>
+                            <span id="cameraStatusText">Camera Inactive</span>
+                        </div>
+                        <div class="hud-badge" id="faceDetectedBadge" style="display: none;">
+                            <i class="fas fa-user-check text-success"></i>
+                            <span id="detectedCountLabel">0 Faces</span>
+                        </div>
+                    </div>
+
+                    <!-- Placeholder before camera starts -->
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+                        <i class="fas fa-video-slash fa-4x mb-3 text-secondary"></i>
+                        <h5 class="font-weight-bold text-white mb-2">Camera is Off</h5>
+                        <p class="small text-muted mb-3">Click "Start Camera" below to grant webcam access</p>
+                        <button class="btn btn-primary font-weight-bold px-4 py-2" id="startCameraPromptBtn" style="border-radius: 10px;">
+                            <i class="fas fa-camera mr-2"></i> Start Camera
+                        </button>
+                    </div>
+
+                    <!-- Video & Drawing Elements -->
+                    <video id="webcamVideo" autoplay playsinline muted></video>
+                    <canvas id="overlayCanvas"></canvas>
+                </div>
+
+                <!-- Camera Controls & Device Picker -->
+                <div class="mt-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-6 mb-2">
+                            <label class="small font-weight-bold text-muted mb-1 d-block">
+                                <i class="fas fa-gear mr-1"></i> Video Source Device
+                            </label>
+                            <select id="cameraSourceSelect" class="form-control form-control-modern form-control-sm">
+                                <option value="">Default Camera</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-2 text-md-right">
+                            <label class="small font-weight-bold text-muted mb-1 d-block">&nbsp;</label>
+                            <button class="btn btn-outline-danger font-weight-bold px-3 btn-sm" id="stopCameraBtn" style="display: none; border-radius: 8px;">
+                                <i class="fas fa-stop mr-1"></i> Stop Camera
+                            </button>
+                            <button class="btn btn-success font-weight-bold px-3 btn-sm" id="startCameraBtn" style="border-radius: 8px;">
+                                <i class="fas fa-play mr-1"></i> Start Camera
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Primary Attendance Actions -->
+                    <div class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
+                        <!-- Continuous Auto-Scan Toggle -->
+                        <button class="btn btn-modern-primary btn-lg flex-grow-1 font-weight-bold mr-2 mb-2" id="autoScanBtn" disabled>
+                            <i class="fas fa-bolt mr-2"></i> Start Real-Time Auto-Scan
+                        </button>
+                        <!-- Single Frame Instant Snapshot -->
+                        <button class="btn btn-outline-primary btn-lg font-weight-bold mb-2" id="snapshotBtn" disabled title="Capture single photo frame and scan">
+                            <i class="fas fa-camera mr-1"></i> Take Snapshot
+                        </button>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        <i class="fas fa-info-circle mr-1"></i> <strong>Tip:</strong> In "Auto-Scan" mode, the camera checks for faces every 1.5 seconds and adds recognized students to the live attendance roster automatically.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: REAL-TIME ATTENDANCE ROSTER & CONTROLS -->
+    <div class="col-lg-5 mb-4">
+        <div class="card-modern h-100 d-flex flex-column">
+            <!-- Header with Live Stats -->
+            <div class="card-header-modern bg-white">
+                <span class="font-weight-bold text-dark">
+                    <i class="fas fa-clipboard-user text-success mr-2"></i> Live Attendance Roster
+                </span>
+                <span class="badge badge-success px-2 py-1 font-weight-bold" id="attendanceRateBadge">0% Present</span>
+            </div>
+
+            <!-- Metric Cards -->
+            <div class="p-3 bg-light border-bottom">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="small text-muted font-weight-bold">ENROLLED</div>
+                        <div class="h4 font-weight-bold text-dark mb-0" id="totalEnrolledCount">{{ total_enrolled }}</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="small text-success font-weight-bold">PRESENT</div>
+                        <div class="h4 font-weight-bold text-success mb-0" id="totalPresentCount">0</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="small text-danger font-weight-bold">ABSENT</div>
+                        <div class="h4 font-weight-bold text-danger mb-0" id="totalAbsentCount">{{ total_enrolled }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabbed View: Live Activity vs Complete Roster -->
+            <div class="px-3 pt-3">
+                <ul class="nav nav-pills nav-fill mb-2" id="rosterTabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active py-2 font-weight-bold small" id="activity-tab" data-toggle="pill" href="#activityFeed" role="tab">
+                            <i class="fas fa-bolt mr-1"></i> Live Recognized (<span id="feedCount">0</span>)
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link py-2 font-weight-bold small" id="roster-tab" data-toggle="pill" href="#allRoster" role="tab">
+                            <i class="fas fa-users mr-1"></i> All Students (<span id="allCount">{{ total_enrolled }}</span>)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="card-body-modern p-3 flex-grow-1">
+                <div class="tab-content" id="rosterTabContent">
+                    <!-- Tab 1: Live Recognition Activity Feed -->
+                    <div class="tab-pane fade show active" id="activityFeed" role="tabpanel">
+                        <div class="roster-scroll" id="recognizedStudentsList">
+                            <div class="text-center py-5 text-muted" id="emptyActivityNotice">
+                                <i class="fas fa-face-smile fa-3x mb-3 text-gray-300"></i>
+                                <h6 class="font-weight-bold text-dark mb-1">No Faces Recognized Yet</h6>
+                                <p class="small text-muted mb-0">Start the camera and face it towards students to record attendance live.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Full Class Roster with Manual Toggles -->
+                    <div class="tab-pane fade" id="allRoster" role="tabpanel">
+                        <div class="roster-scroll" id="fullRosterList">
+                            <!-- Populated via JavaScript dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Final Save Action Footer -->
+            <div class="p-3 bg-white border-top">
+                <button class="btn btn-modern-success btn-lg btn-block font-weight-bold py-3 shadow-sm" id="saveAttendanceBtn" style="border-radius: 12px;">
+                    <i class="fas fa-cloud-arrow-up mr-2"></i> Save & Submit Attendance
+                </button>
+                <div class="text-center mt-2">
+                    <small class="text-muted" id="saveStatusHint">Saves current Present/Absent records to database</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Offscreen Canvas for Snapshot Grabbing -->
+<canvas id="snapshotCanvas" style="display: none;"></canvas>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ==========================================
+// STATE MANAGEMENT & CONFIGURATION
+// ==========================================
+const state = {
+    stream: null,
+    isScanning: false,
+    scanIntervalId: null,
+    isProcessingFrame: false,
+    soundEnabled: true,
+    isMirrored: false,
+    selectedDeviceId: '',
+    students: {}, // id -> { id, student_id, name, status: 'Absent'/'Present', confidence: 0, photo_url, lastSeen }
+};
+
+// Elements
+const video = document.getElementById('webcamVideo');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const overlayCtx = overlayCanvas.getContext('2d');
+const snapshotCanvas = document.getElementById('snapshotCanvas');
+const snapshotCtx = snapshotCanvas.getContext('2d');
+const cameraWrapper = document.getElementById('cameraWrapper');
+const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+const cameraSourceSelect = document.getElementById('cameraSourceSelect');
+
+const startCameraBtn = document.getElementById('startCameraBtn');
+const stopCameraBtn = document.getElementById('stopCameraBtn');
+const startCameraPromptBtn = document.getElementById('startCameraPromptBtn');
+const autoScanBtn = document.getElementById('autoScanBtn');
+const snapshotBtn = document.getElementById('snapshotBtn');
+const mirrorBtn = document.getElementById('mirrorBtn');
+const soundToggleBtn = document.getElementById('soundToggleBtn');
+const soundIcon = document.getElementById('soundIcon');
+
+const selectBranch = document.getElementById('selectBranch');
+const selectYear = document.getElementById('selectYear');
+const selectSection = document.getElementById('selectSection');
+const selectPeriod = document.getElementById('selectPeriod');
+const selectDate = document.getElementById('selectDate');
+
+const cameraStatusText = document.getElementById('cameraStatusText');
+const statusPulseDot = document.getElementById('statusPulseDot');
+const faceDetectedBadge = document.getElementById('faceDetectedBadge');
+const detectedCountLabel = document.getElementById('detectedCountLabel');
+
+const totalEnrolledCount = document.getElementById('totalEnrolledCount');
+const totalPresentCount = document.getElementById('totalPresentCount');
+const totalAbsentCount = document.getElementById('totalAbsentCount');
+const attendanceRateBadge = document.getElementById('attendanceRateBadge');
+const recognizedStudentsList = document.getElementById('recognizedStudentsList');
+const fullRosterList = document.getElementById('fullRosterList');
+const emptyActivityNotice = document.getElementById('emptyActivityNotice');
+const feedCount = document.getElementById('feedCount');
+const allCount = document.getElementById('allCount');
+const classRosterCountBadge = document.getElementById('classRosterCountBadge');
+const saveAttendanceBtn = document.getElementById('saveAttendanceBtn');
+
+// Web Audio API Ding Sound
+function playSuccessChime() {
+    if (!state.soundEnabled) return;
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08); // A5
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.35);
+    } catch(e) {}
+}
+
+// CSRF Cookie Reader
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+// ==========================================
+// CAMERA MANAGEMENT
+// ==========================================
+async function enumerateCameras() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        cameraSourceSelect.innerHTML = '';
+        if (videoDevices.length === 0) {
+            cameraSourceSelect.innerHTML = '<option value="">Default Camera</option>';
+            return;
+        }
+        videoDevices.forEach((dev, idx) => {
+            const opt = document.createElement('option');
+            opt.value = dev.deviceId;
+            opt.text = dev.label || `Camera ${idx + 1}`;
+            cameraSourceSelect.appendChild(opt);
+        });
+    } catch(err) {
+        console.warn("Could not enumerate camera devices:", err);
+    }
+}
+
+async function startCamera() {
+    stopCamera();
+
+    const deviceId = cameraSourceSelect.value;
+    const constraints = {
+        video: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+        },
+        audio: false
+    };
+
+    try {
+        cameraStatusText.textContent = "Connecting Camera...";
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        state.stream = stream;
+        video.srcObject = stream;
+
+        video.onloadedmetadata = () => {
+            video.play();
+            cameraPlaceholder.style.display = 'none';
+            startCameraBtn.style.display = 'none';
+            stopCameraBtn.style.display = 'inline-block';
+            autoScanBtn.disabled = false;
+            snapshotBtn.disabled = false;
+
+            cameraStatusText.textContent = "Camera Live";
+            statusPulseDot.classList.add('scanning');
+
+            // Resize overlay canvas to match video actual resolution
+            overlayCanvas.width = video.videoWidth || 640;
+            overlayCanvas.height = video.videoHeight || 480;
+
+            enumerateCameras();
+        };
+    } catch(err) {
+        console.error("Camera access error:", err);
+        cameraStatusText.textContent = "Camera Blocked / Unavailable";
+        statusPulseDot.classList.remove('scanning');
+        alert("Camera permission denied or camera device in use. Please allow camera access in your browser bar.");
+    }
+}
+
+function stopCamera() {
+    stopAutoScan();
+    if (state.stream) {
+        state.stream.getTracks().forEach(t => t.stop());
+        state.stream = null;
+    }
+    video.srcObject = null;
+    cameraPlaceholder.style.display = 'block';
+    startCameraBtn.style.display = 'inline-block';
+    stopCameraBtn.style.display = 'none';
+    autoScanBtn.disabled = true;
+    snapshotBtn.disabled = true;
+
+    cameraStatusText.textContent = "Camera Inactive";
+    statusPulseDot.classList.remove('scanning');
+    cameraWrapper.classList.remove('scanning-active');
+    faceDetectedBadge.style.display = 'none';
+    clearOverlay();
+}
+
+function clearOverlay() {
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+}
+
+// ==========================================
+// LIVE FRAME RECOGNITION PIPELINE
+// ==========================================
+async function captureAndScanFrame() {
+    if (!state.stream || state.isProcessingFrame || video.readyState < 2) return;
+
+    state.isProcessingFrame = true;
+
+    // Grab current frame onto offscreen canvas
+    const w = video.videoWidth || 640;
+    const h = video.videoHeight || 480;
+    snapshotCanvas.width = w;
+    snapshotCanvas.height = h;
+
+    if (state.isMirrored) {
+        snapshotCtx.save();
+        snapshotCtx.scale(-1, 1);
+        snapshotCtx.drawImage(video, -w, 0, w, h);
+        snapshotCtx.restore();
+    } else {
+        snapshotCtx.drawImage(video, 0, 0, w, h);
+    }
+
+    const frameBase64 = snapshotCanvas.toDataURL('image/jpeg', 0.82);
+
+    const payload = {
+        image: frameBase64,
+        branch: selectBranch.value,
+        year: selectYear.value,
+        section: selectSection.value,
+        tolerance: 0.55
+    };
+
+    try {
+        const response = await fetch("{% url 'live_scan_frame' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            renderDetections(data);
+        } else {
+            console.warn("Scan warning:", data.error);
+        }
+    } catch(err) {
+        console.error("Frame recognition error:", err);
+    } finally {
+        state.isProcessingFrame = false;
+    }
+}
+
+function renderDetections(data) {
+    clearOverlay();
+
+    const w = overlayCanvas.width;
+    const h = overlayCanvas.height;
+    const scaleX = w / data.frame_width;
+    const scaleY = h / data.frame_height;
+
+    // Face count badge
+    if (data.total_detected > 0) {
+        faceDetectedBadge.style.display = 'inline-flex';
+        detectedCountLabel.textContent = `${data.total_detected} Face${data.total_detected > 1 ? 's' : ''}`;
+    } else {
+        faceDetectedBadge.style.display = 'none';
+    }
+
+    let newlyRecognized = false;
+
+    // Draw bounding boxes on overlay canvas
+    data.face_boxes.forEach(box => {
+        let left = box.left * scaleX;
+        let top = box.top * scaleY;
+        let right = box.right * scaleX;
+        let bottom = box.bottom * scaleY;
+        let boxWidth = right - left;
+        let boxHeight = bottom - top;
+
+        if (state.isMirrored) {
+            left = w - right;
+        }
+
+        const isKnown = box.matched;
+        const color = isKnown ? '#10b981' : '#f59e0b'; // Emerald or Amber
+
+        // Glowing rounded rectangle
+        overlayCtx.save();
+        overlayCtx.lineWidth = 3;
+        overlayCtx.strokeStyle = color;
+        overlayCtx.shadowColor = color;
+        overlayCtx.shadowBlur = 8;
+
+        overlayCtx.beginPath();
+        const r = 8;
+        overlayCtx.moveTo(left + r, top);
+        overlayCtx.arcTo(left + boxWidth, top, left + boxWidth, top + boxHeight, r);
+        overlayCtx.arcTo(left + boxWidth, top + boxHeight, left, top + boxHeight, r);
+        overlayCtx.arcTo(left, top + boxHeight, left, top, r);
+        overlayCtx.arcTo(left, top, left + boxWidth, top, r);
+        overlayCtx.closePath();
+        overlayCtx.stroke();
+
+        // Label pill background
+        const labelText = isKnown ? `${box.name} (${box.confidence}%)` : 'Unrecognized Face';
+        overlayCtx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
+        const textMetrics = overlayCtx.measureText(labelText);
+        const textW = textMetrics.width;
+
+        overlayCtx.fillStyle = color;
+        overlayCtx.shadowBlur = 0;
+        overlayCtx.beginPath();
+        overlayCtx.roundRect ? overlayCtx.roundRect(left, Math.max(0, top - 26), textW + 16, 24, 6) : overlayCtx.rect(left, Math.max(0, top - 26), textW + 16, 24);
+        overlayCtx.fill();
+
+        // Label text
+        overlayCtx.fillStyle = '#0f172a';
+        overlayCtx.fillText(labelText, left + 8, Math.max(16, top - 9));
+        overlayCtx.restore();
+    });
+
+    // Mark matched students present in our state
+    data.matched_students.forEach(match => {
+        const studentId = String(match.student_id);
+        if (state.students[studentId]) {
+            const wasAbsent = state.students[studentId].status !== 'Present';
+            state.students[studentId].status = 'Present';
+            state.students[studentId].confidence = match.confidence;
+            state.students[studentId].lastSeen = new Date().toLocaleTimeString();
+
+            if (wasAbsent) {
+                newlyRecognized = true;
+                addActivityCard(state.students[studentId]);
+            }
+        }
+    });
+
+    if (newlyRecognized) {
+        playSuccessChime();
+        updateRosterUI();
+    }
+}
+
+function startAutoScan() {
+    if (state.isScanning) return;
+    state.isScanning = true;
+    cameraWrapper.classList.add('scanning-active');
+    autoScanBtn.classList.remove('btn-modern-primary');
+    autoScanBtn.classList.add('btn-warning');
+    autoScanBtn.innerHTML = '<i class="fas fa-pause mr-2"></i> Pause Auto-Scan';
+    cameraStatusText.textContent = "Scanning Live Faces...";
+
+    // Scan every 1.5 seconds for snappy responsive feedback without overload
+    state.scanIntervalId = setInterval(captureAndScanFrame, 1500);
+    captureAndScanFrame();
+}
+
+function stopAutoScan() {
+    if (!state.isScanning) return;
+    state.isScanning = false;
+    cameraWrapper.classList.remove('scanning-active');
+    clearInterval(state.scanIntervalId);
+    state.scanIntervalId = null;
+    autoScanBtn.classList.remove('btn-warning');
+    autoScanBtn.classList.add('btn-modern-primary');
+    autoScanBtn.innerHTML = '<i class="fas fa-bolt mr-2"></i> Start Real-Time Auto-Scan';
+    if (state.stream) {
+        cameraStatusText.textContent = "Camera Live (Idle)";
+    }
+    clearOverlay();
+}
+
+// ==========================================
+// ROSTER DATA & UI
+// ==========================================
+async function loadClassRoster() {
+    const branch = selectBranch.value;
+    const year = selectYear.value;
+    const section = selectSection.value;
+
+    try {
+        const res = await fetch(`{% url 'class_roster_json' %}?branch=${encodeURIComponent(branch)}&year=${encodeURIComponent(year)}&section=${encodeURIComponent(section)}`);
+        const data = await res.json();
+
+        if (data.success) {
+            state.students = {};
+            data.roster.forEach(s => {
+                const sid = String(s.student_id);
+                state.students[sid] = {
+                    id: s.id,
+                    student_id: sid,
+                    name: s.name,
+                    status: 'Absent',
+                    confidence: 0,
+                    photo_url: s.photo_url,
+                    has_photo: s.has_photo,
+                    lastSeen: null
+                };
+            });
+
+            // Reset Activity Feed
+            recognizedStudentsList.innerHTML = '';
+            recognizedStudentsList.appendChild(emptyActivityNotice);
+            emptyActivityNotice.style.display = 'block';
+
+            updateRosterUI();
+        }
+    } catch(e) {
+        console.error("Error loading roster:", e);
+    }
+}
+
+function updateRosterUI() {
+    const studentList = Object.values(state.students);
+    const total = studentList.length;
+    const presentCount = studentList.filter(s => s.status === 'Present').length;
+    const absentCount = total - presentCount;
+    const rate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
+
+    totalEnrolledCount.textContent = total;
+    totalPresentCount.textContent = presentCount;
+    totalAbsentCount.textContent = absentCount;
+    allCount.textContent = total;
+    feedCount.textContent = presentCount;
+    classRosterCountBadge.textContent = `${total} Students Enrolled`;
+    attendanceRateBadge.textContent = `${rate}% Present`;
+
+    // Render Full Roster List
+    fullRosterList.innerHTML = '';
+    if (total === 0) {
+        fullRosterList.innerHTML = '<div class="text-center py-4 text-muted small">No students registered in this class.</div>';
+        return;
+    }
+
+    studentList.forEach(s => {
+        const isPresent = s.status === 'Present';
+        const item = document.createElement('div');
+        item.className = 'd-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white';
+        item.innerHTML = `
+            <div class="d-flex align-items-center">
+                <img src="${s.photo_url}" class="rounded-circle mr-3" style="width: 38px; height: 38px; object-fit: cover; border: 1.5px solid ${isPresent ? '#10b981' : '#cbd5e1'};" onerror="this.src='/static/images/default_avatar.png'">
+                <div>
+                    <div class="font-weight-bold text-dark small">${s.name}</div>
+                    <div class="text-muted" style="font-size: 0.76rem;">${s.student_id} ${s.confidence > 0 ? '• ' + s.confidence + '% match' : ''}</div>
+                </div>
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm ${isPresent ? 'btn-success' : 'btn-outline-secondary'} font-weight-bold px-3" onclick="toggleStudentStatus('${s.student_id}')" style="border-radius: 8px; font-size: 0.78rem;">
+                    <i class="fas ${isPresent ? 'fa-check' : 'fa-xmark'} mr-1"></i> ${isPresent ? 'Present' : 'Absent'}
+                </button>
+            </div>
+        `;
+        fullRosterList.appendChild(item);
+    });
+}
+
+function addActivityCard(student) {
+    if (emptyActivityNotice) {
+        emptyActivityNotice.style.display = 'none';
+    }
+
+    // Check if card already exists
+    const existing = document.getElementById(`feed-card-${student.student_id}`);
+    if (existing) {
+        existing.remove();
+    }
+
+    const card = document.createElement('div');
+    card.id = `feed-card-${student.student_id}`;
+    card.className = 'present-student-card';
+    card.innerHTML = `
+        <div class="d-flex align-items-center">
+            <img src="${student.photo_url}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover; border: 2px solid #10b981;" onerror="this.src='/static/images/default_avatar.png'">
+            <div>
+                <div class="font-weight-bold text-dark">${student.name}</div>
+                <div class="text-muted small">${student.student_id} • <span class="badge badge-success px-2 py-0">${student.confidence}% Conf</span></div>
+            </div>
+        </div>
+        <div class="text-right">
+            <span class="badge badge-light text-success font-weight-bold p-1">
+                <i class="fas fa-clock mr-1"></i> ${student.lastSeen || 'Just now'}
+            </span>
+        </div>
+    `;
+
+    recognizedStudentsList.prepend(card);
+}
+
+window.toggleStudentStatus = function(studentId) {
+    const s = state.students[String(studentId)];
+    if (!s) return;
+    s.status = s.status === 'Present' ? 'Absent' : 'Present';
+    if (s.status === 'Present') {
+        s.confidence = 100.0;
+        s.lastSeen = 'Manual Entry';
+        addActivityCard(s);
+        playSuccessChime();
+    } else {
+        const feedCard = document.getElementById(`feed-card-${s.student_id}`);
+        if (feedCard) feedCard.remove();
+    }
+    updateRosterUI();
+};
+
+// ==========================================
+// SAVE ATTENDANCE SESSION
+// ==========================================
+async function saveAttendanceSession() {
+    const studentList = Object.values(state.students);
+    if (studentList.length === 0) {
+        alert("No enrolled students in this class to save.");
+        return;
+    }
+
+    const presentCount = studentList.filter(s => s.status === 'Present').length;
+    const confirmMsg = `Save Attendance Session for ${selectBranch.value} Year ${selectYear.value}-${selectSection.value} (Period ${selectPeriod.value})?\n\nPresent: ${presentCount}\nAbsent: ${studentList.length - presentCount}`;
+
+    if (!confirm(confirmMsg)) return;
+
+    saveAttendanceBtn.disabled = true;
+    saveAttendanceBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving Attendance Records...';
+
+    const records = studentList.map(s => ({
+        student_id: s.student_id,
+        status: s.status,
+        confidence: s.confidence
+    }));
+
+    const payload = {
+        branch: selectBranch.value,
+        year: selectYear.value,
+        section: selectSection.value,
+        period: selectPeriod.value,
+        date: selectDate.value,
+        records: records
+    };
+
+    try {
+        const res = await fetch("{% url 'live_save_attendance' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = data.redirect_url;
+        } else {
+            alert("Error saving attendance: " + (data.error || "Unknown server error"));
+            saveAttendanceBtn.disabled = false;
+            saveAttendanceBtn.innerHTML = '<i class="fas fa-cloud-arrow-up mr-2"></i> Save & Submit Attendance';
+        }
+    } catch(err) {
+        console.error("Save error:", err);
+        alert("Failed to connect to server to save attendance.");
+        saveAttendanceBtn.disabled = false;
+        saveAttendanceBtn.innerHTML = '<i class="fas fa-cloud-arrow-up mr-2"></i> Save & Submit Attendance';
+    }
+}
+
+// ==========================================
+// EVENT LISTENERS
+// ==========================================
+startCameraBtn.addEventListener('click', startCamera);
+startCameraPromptBtn.addEventListener('click', startCamera);
+stopCameraBtn.addEventListener('click', stopCamera);
+
+autoScanBtn.addEventListener('click', () => {
+    if (state.isScanning) {
+        stopAutoScan();
+    } else {
+        startAutoScan();
+    }
+});
+
+snapshotBtn.addEventListener('click', () => {
+    captureAndScanFrame();
+});
+
+mirrorBtn.addEventListener('click', () => {
+    state.isMirrored = !state.isMirrored;
+    video.classList.toggle('mirrored', state.isMirrored);
+});
+
+soundToggleBtn.addEventListener('click', () => {
+    state.soundEnabled = !state.soundEnabled;
+    if (state.soundEnabled) {
+        soundIcon.className = "fas fa-volume-high text-success";
+    } else {
+        soundIcon.className = "fas fa-volume-xmark text-muted";
+    }
+});
+
+cameraSourceSelect.addEventListener('change', () => {
+    if (state.stream) {
+        startCamera();
+    }
+});
+
+[selectBranch, selectYear, selectSection].forEach(sel => {
+    sel.addEventListener('change', () => {
+        loadClassRoster();
+    });
+});
+
+saveAttendanceBtn.addEventListener('click', saveAttendanceSession);
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadClassRoster();
+    enumerateCameras();
+});
+</script>
+{% endblock %}

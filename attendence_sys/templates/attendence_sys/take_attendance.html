@@ -1,30 +1,35 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Take Attendance | Face Attendance System{% endblock %}
+{% block title %}Take Attendance | Smart Face Attendance System{% endblock %}
 
 {% block content %}
+<!-- Page Header -->
 <div class="row align-items-center mb-4">
     <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
-            <i class="fas fa-camera-retro text-primary mr-2"></i> Take Attendance with Classroom Photo
+        <h2 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">
+            <i class="fas fa-camera-retro text-primary mr-2"></i> Classroom AI Face Attendance
         </h2>
         <p class="text-muted mb-0">
-            Upload a classroom photo containing students. AI detects each face and automatically marks them Present or Absent with instant review and editing.
+            Upload a group photo or snap via webcam. AI recognizes all enrolled students, marks attendance automatically, and allows 1-click review.
         </p>
     </div>
-    <div class="col-md-4 text-md-right mt-3 mt-md-0">
-        <a href="{% url 'edit_attendance' %}" class="btn btn-outline-warning text-dark font-weight-bold" style="border-radius: 10px;">
-            <i class="fas fa-pen-to-square mr-1"></i> Edit Existing Attendance
+    <div class="col-md-4 text-md-right mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end" style="gap: 8px;">
+        <a href="{% url 'live_attendance' %}" class="btn btn-danger font-weight-bold shadow-sm" style="border-radius: 10px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); border: none;">
+            <i class="fas fa-video mr-1"></i> Live Camera Scanner
+        </a>
+        <a href="{% url 'edit_attendance' %}" class="btn btn-outline-warning text-dark font-weight-bold" style="border-radius: 10px; border-width: 1.5px;">
+            <i class="fas fa-pen-to-square mr-1"></i> Edit Records
         </a>
     </div>
 </div>
 
+<!-- Existing Records Warning Alert -->
 {% if existing_count > 0 and step == 'select' %}
 <div class="alert alert-warning alert-modern mb-4">
     <i class="fas fa-exclamation-triangle fa-lg text-warning"></i>
     <div>
-        <strong>Notice:</strong> Attendance has already been recorded for <strong>{{ selected_branch }} Year {{ selected_year }}-{{ selected_section }} (Period {{ selected_period }})</strong> on <strong>{{ selected_date }}</strong>.
+        <strong>Session Notice:</strong> Attendance has already been recorded for <strong>{{ selected_branch }} Year {{ selected_year }}-{{ selected_section }} (Period {{ selected_period }})</strong> on <strong>{{ selected_date }}</strong>.
         Found {{ existing_count }} student records ({{ existing_present }} Present).
     </div>
     <div class="ml-auto">
@@ -36,21 +41,28 @@
 {% endif %}
 
 <!-- STEP 1: CLASS SELECTION & PHOTO UPLOAD -->
-<div class="card-modern mb-5">
-    <div class="card-header-modern">
-        <span><i class="fas fa-sliders text-primary mr-2"></i> Step 1: Select Class & Upload Classroom Photo</span>
+<div class="card-modern mb-4">
+    <div class="card-header-modern bg-white">
+        <span class="d-flex align-items-center">
+            <span class="badge badge-primary mr-2" style="font-size: 0.8rem; padding: 4px 8px; border-radius: 6px;">STEP 1</span>
+            <strong>Select Academic Class & Capture Classroom Photo</strong>
+        </span>
         {% if step == 'review' %}
-            <span class="badge badge-success px-3 py-1 font-weight-bold">Photo Analyzed</span>
+            <span class="badge badge-success px-3 py-1 font-weight-bold">
+                <i class="fas fa-check-circle mr-1"></i> Photo Processed
+            </span>
         {% endif %}
     </div>
+
     <div class="card-body-modern">
         <form method="POST" enctype="multipart/form-data" action="{% url 'take_attendance' %}" id="attendanceDetectionForm">
             {% csrf_token %}
             <input type="hidden" name="action" value="detect">
 
+            <!-- 5-Field Academic Selection Grid -->
             <div class="row">
                 <div class="col-md-3 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Select Branch</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-building text-primary mr-1"></i> Branch / Dept</label>
                     <select name="branch" class="form-control form-control-modern" required>
                         {% for b in branches %}
                             <option value="{{ b }}" {% if selected_branch == b %}selected{% endif %}>{{ b }}</option>
@@ -59,7 +71,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Select Year</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-calendar-days text-primary mr-1"></i> Academic Year</label>
                     <select name="year" class="form-control form-control-modern" required>
                         {% for y in years %}
                             <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>Year {{ y }}</option>
@@ -68,7 +80,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Select Section</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-users-rectangle text-primary mr-1"></i> Section</label>
                     <select name="section" class="form-control form-control-modern" required>
                         {% for sec in sections %}
                             <option value="{{ sec }}" {% if selected_section == sec %}selected{% endif %}>Section {{ sec }}</option>
@@ -77,7 +89,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Select Period</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-clock text-primary mr-1"></i> Class Period</label>
                     <select name="period" class="form-control form-control-modern" required>
                         {% for p in periods %}
                             <option value="{{ p }}" {% if selected_period == p %}selected{% endif %}>Period {{ p }}</option>
@@ -86,30 +98,76 @@
                 </div>
 
                 <div class="col-md-3 col-sm-12 mb-3">
-                    <label class="font-weight-bold text-dark small">Attendance Date</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-calendar-day text-primary mr-1"></i> Attendance Date</label>
                     <input type="date" name="date" class="form-control form-control-modern" value="{{ selected_date|default:today_str }}" required>
                 </div>
             </div>
 
-            <!-- Classroom Photo Dropzone -->
-            <div class="mt-3">
-                <label class="font-weight-bold text-dark small d-block">
-                    Classroom / Group Photo (Students in class)
-                </label>
-                <div class="upload-dropzone" onclick="document.getElementById('classroom_image').click();">
-                    <input type="file" name="classroom_image" id="classroom_image" accept="image/*" style="display: none;" onchange="previewImageName(this)">
-                    <div id="dropzoneContent">
-                        <i class="fas fa-cloud-arrow-up fa-3x text-primary mb-3"></i>
-                        <h6 class="font-weight-bold text-dark mb-1">Click to browse or drop classroom image here</h6>
-                        <p class="text-muted small mb-0">Supports JPG, PNG, JPEG high-resolution classroom photos</p>
+            <!-- Classroom Photo Input Mode (Tabs) -->
+            <div class="mt-2">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="font-weight-bold text-dark small mb-0">
+                        <i class="fas fa-image text-primary mr-1"></i> Classroom Photo / Camera Source
+                    </label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-primary active font-weight-bold px-3" id="uploadTabBtn" onclick="switchInputMethod('upload')">
+                            <i class="fas fa-file-image mr-1"></i> Upload File
+                        </button>
+                        <button type="button" class="btn btn-outline-danger font-weight-bold px-3" id="webcamTabBtn" onclick="switchInputMethod('webcam')">
+                            <i class="fas fa-camera mr-1"></i> Use Webcam
+                        </button>
                     </div>
-                    <div id="fileNamePreview" class="mt-2 text-success font-weight-bold" style="display: none;"></div>
+                </div>
+
+                <!-- Mode 1: File Dropzone -->
+                <div id="fileUploadContainer">
+                    <div class="upload-dropzone" onclick="document.getElementById('classroom_image').click();">
+                        <input type="file" name="classroom_image" id="classroom_image" accept="image/*" style="display: none;" onchange="previewImageName(this)">
+                        <div id="dropzoneContent">
+                            <div class="stat-icon mx-auto mb-3" style="background: #eff6ff; color: #1e40af; width: 64px; height: 64px; font-size: 1.8rem;">
+                                <i class="fas fa-cloud-arrow-up"></i>
+                            </div>
+                            <h6 class="font-weight-bold text-dark mb-1">Click to browse or drag & drop classroom photo</h6>
+                            <p class="text-muted small mb-0">Supports JPG, PNG, JPEG high-resolution classroom photos</p>
+                        </div>
+                        <div id="fileNamePreview" class="mt-2 text-success font-weight-bold" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- Mode 2: Quick Webcam Capture -->
+                <div id="webcamCaptureContainer" style="display: none;">
+                    <div class="p-3 bg-dark text-center" style="border-radius: 14px;">
+                        <div style="position: relative; max-width: 640px; margin: 0 auto; background: #000; border-radius: 10px; overflow: hidden; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                            <video id="quickWebcamVideo" autoplay playsinline muted style="width: 100%; height: auto; max-height: 380px; object-fit: cover; display: none;"></video>
+                            <canvas id="quickWebcamCanvas" style="display: none;"></canvas>
+                            <div id="quickWebcamPlaceholder" class="p-4 text-white">
+                                <i class="fas fa-video fa-3x mb-3 text-secondary"></i>
+                                <h6 class="font-weight-bold">Webcam Ready</h6>
+                                <p class="small text-muted mb-3">Click below to activate camera preview</p>
+                                <button type="button" class="btn btn-primary font-weight-bold px-4" onclick="startQuickWebcam()">
+                                    <i class="fas fa-play mr-1"></i> Open Camera
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex justify-content-center align-items-center flex-wrap" style="gap: 10px;" id="quickWebcamControls">
+                            <button type="button" class="btn btn-outline-light btn-sm" id="closeCamBtn" onclick="stopQuickWebcam()" style="display: none;">
+                                <i class="fas fa-stop mr-1"></i> Close Camera
+                            </button>
+                            <button type="button" class="btn btn-success font-weight-bold px-4" id="snapAndScanBtn" onclick="snapAndSubmit()" style="display: none;">
+                                <i class="fas fa-camera mr-2"></i> Snap Photo & Detect Attendance
+                            </button>
+                            <a href="{% url 'live_attendance' %}" class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-expand mr-1"></i> Real-Time Live Scanner
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="d-flex align-items-center justify-content-between mt-4">
-                <button type="button" class="btn btn-outline-secondary" onclick="loadManualRoster()">
-                    <i class="fas fa-clipboard-user mr-1"></i> Manual Roster (No Image)
+            <!-- Bottom Actions -->
+            <div class="d-flex align-items-center justify-content-between mt-4 pt-3 border-top flex-wrap" style="gap: 12px;">
+                <button type="button" class="btn btn-outline-secondary font-weight-bold" onclick="loadManualRoster()">
+                    <i class="fas fa-clipboard-user mr-1"></i> Load Manual Roster (Without Image)
                 </button>
                 <button type="submit" class="btn btn-modern-primary btn-lg px-4" id="scanBtn">
                     <i class="fas fa-wand-magic-sparkles mr-2"></i> Scan Classroom Photo & Detect Attendance
@@ -119,64 +177,72 @@
     </div>
 </div>
 
-
-<!-- STEP 2: REVIEW & EDIT ATTENDANCE -->
+<!-- STEP 2: REVIEW & CONFIRM ATTENDANCE -->
 {% if step == 'review' %}
 <div class="card-modern mb-5" id="reviewSection">
-    <div class="card-header-modern bg-light d-flex justify-content-between align-items-center flex-wrap" style="gap: 12px;">
-        <span class="d-flex align-items-center gap-2 font-weight-bold">
-            <i class="fas fa-user-check text-success mr-2"></i> Step 2: Review & Edit Attendance ({{ selected_branch }} Year {{ selected_year }}-{{ selected_section }}, Period {{ selected_period }})
+    <div class="card-header-modern bg-white d-flex justify-content-between align-items-center flex-wrap" style="gap: 12px;">
+        <span class="d-flex align-items-center font-weight-bold">
+            <span class="badge badge-success mr-2" style="font-size: 0.8rem; padding: 4px 8px; border-radius: 6px;">STEP 2</span>
+            <span>Review & Verify Attendance: {{ selected_branch }} Year {{ selected_year }}-{{ selected_section }} &bull; Period {{ selected_period }}</span>
         </span>
         <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
-            <button type="button" class="btn btn-sm btn-outline-success" onclick="setAllStatus('Present')">
+            <button type="button" class="btn btn-sm btn-outline-success font-weight-bold" onclick="setAllStatus('Present')">
                 <i class="fas fa-check-double mr-1"></i> Mark All Present
             </button>
-            <button type="button" class="btn btn-sm btn-outline-danger" onclick="setAllStatus('Absent')">
+            <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" onclick="setAllStatus('Absent')">
                 <i class="fas fa-xmark mr-1"></i> Mark All Absent
             </button>
-            <button type="button" class="btn btn-sm btn-modern-success px-3 font-weight-bold ml-md-2" onclick="document.getElementById('saveAttendanceForm').submit();" style="cursor: pointer; z-index: 10;">
+            <button type="button" class="btn btn-sm btn-modern-success px-3 font-weight-bold ml-md-2" onclick="document.getElementById('saveAttendanceForm').submit();" style="cursor: pointer;">
                 <i class="fas fa-floppy-disk mr-1"></i> Save Attendance
             </button>
         </div>
     </div>
 
     <div class="card-body-modern">
-        <!-- Detection Summary Metrics -->
+        <!-- Detection Summary KPI Metrics -->
         <div class="row mb-4">
             <div class="col-md-3 col-6 mb-3">
-                <div class="stat-card p-3">
+                <div class="stat-card p-3 card-primary">
                     <div>
                         <div class="stat-label">Enrolled Students</div>
                         <div class="h4 font-weight-bold mb-0 text-dark" id="displayEnrolled">{{ total_enrolled }}</div>
                     </div>
-                    <i class="fas fa-users text-primary fa-lg"></i>
+                    <div class="stat-icon" style="background: #eff6ff; color: #1e40af; width: 44px; height: 44px; font-size: 1.2rem;">
+                        <i class="fas fa-users"></i>
+                    </div>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
-                <div class="stat-card p-3">
+                <div class="stat-card p-3 card-indigo">
                     <div>
                         <div class="stat-label">Faces in Photo</div>
                         <div class="h4 font-weight-bold mb-0 text-info">{{ total_detected_faces }}</div>
                     </div>
-                    <i class="fas fa-camera text-info fa-lg"></i>
+                    <div class="stat-icon" style="background: #e0e7ff; color: #4338ca; width: 44px; height: 44px; font-size: 1.2rem;">
+                        <i class="fas fa-camera"></i>
+                    </div>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
-                <div class="stat-card p-3">
+                <div class="stat-card p-3 card-success">
                     <div>
                         <div class="stat-label">Marked Present</div>
                         <div class="h4 font-weight-bold mb-0 text-success" id="displayPresent">{{ present_count }}</div>
                     </div>
-                    <i class="fas fa-circle-check text-success fa-lg"></i>
+                    <div class="stat-icon" style="background: #d1fae5; color: #059669; width: 44px; height: 44px; font-size: 1.2rem;">
+                        <i class="fas fa-circle-check"></i>
+                    </div>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
-                <div class="stat-card p-3">
+                <div class="stat-card p-3 card-warning">
                     <div>
                         <div class="stat-label">Marked Absent</div>
                         <div class="h4 font-weight-bold mb-0 text-danger" id="displayAbsent">{{ absent_count }}</div>
                     </div>
-                    <i class="fas fa-circle-xmark text-danger fa-lg"></i>
+                    <div class="stat-icon" style="background: #fee2e2; color: #dc2626; width: 44px; height: 44px; font-size: 1.2rem;">
+                        <i class="fas fa-circle-xmark"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -190,12 +256,30 @@
             <div class="border rounded p-2 bg-dark" style="max-height: 480px; overflow: hidden; display: inline-block; border-radius: 12px !important;">
                 <img src="{{ annotated_image }}" alt="Annotated Classroom" class="img-fluid" style="max-height: 460px; object-fit: contain; border-radius: 8px;">
             </div>
-            <div class="small text-muted mt-1">
-                <span class="text-success font-weight-bold mr-3"><i class="fas fa-square mr-1"></i> Green: Recognized Present</span>
-                <span class="text-warning font-weight-bold"><i class="fas fa-square mr-1"></i> Yellow: Unassigned Face</span>
+            <div class="small text-muted mt-2">
+                <span class="badge badge-success px-2 py-1 mr-3"><i class="fas fa-square mr-1"></i> Green: Recognized Present</span>
+                <span class="badge badge-warning text-dark px-2 py-1"><i class="fas fa-square mr-1"></i> Yellow: Unassigned Face</span>
             </div>
         </div>
         {% endif %}
+
+        <!-- Filter bar for reviewing students -->
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap: 10px;">
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-primary active font-weight-bold" onclick="filterRoster('all', this)">
+                    All Students (<span id="btnCountAll">{{ roster|length }}</span>)
+                </button>
+                <button type="button" class="btn btn-outline-success font-weight-bold" onclick="filterRoster('present', this)">
+                    Present Only (<span id="btnCountPresent">{{ present_count }}</span>)
+                </button>
+                <button type="button" class="btn btn-outline-danger font-weight-bold" onclick="filterRoster('absent', this)">
+                    Absent Only (<span id="btnCountAbsent">{{ absent_count }}</span>)
+                </button>
+            </div>
+            <div class="small text-muted">
+                <i class="fas fa-circle-info text-primary mr-1"></i> Click <strong>"Toggle Status"</strong> on any row to flip between Present and Absent.
+            </div>
+        </div>
 
         <!-- Form for saving final attendance -->
         <form method="POST" action="{% url 'take_attendance' %}" id="saveAttendanceForm">
@@ -208,20 +292,20 @@
             <input type="hidden" name="date" value="{{ selected_date }}">
 
             <div class="table-responsive">
-                <table class="table table-hover align-middle" style="font-size: 0.95rem;">
-                    <thead class="thead-light">
+                <table class="table table-modern" style="font-size: 0.94rem;">
+                    <thead>
                         <tr>
                             <th style="width: 70px;">Photo</th>
-                            <th>Registration ID</th>
+                            <th>Student ID</th>
                             <th>Student Name</th>
                             <th>AI Detection Result</th>
                             <th class="text-center" style="width: 140px;">Status</th>
-                            <th class="text-center" style="width: 160px;">Edit Option</th>
+                            <th class="text-center" style="width: 160px;">1-Click Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in roster %}
-                        <tr id="row_{{ row.student.register_number|default:row.student.registration_id }}">
+                        <tr id="row_{{ row.student.register_number|default:row.student.registration_id }}" class="roster-row" data-status="{{ row.status|lower }}">
                             <input type="hidden" name="student_id" value="{{ row.student.register_number|default:row.student.registration_id }}">
                             <input type="hidden" name="status_{{ row.student.register_number|default:row.student.registration_id }}" id="status_input_{{ row.student.register_number|default:row.student.registration_id }}" value="{{ row.status }}">
                             <input type="hidden" name="confidence_{{ row.student.register_number|default:row.student.registration_id }}" value="{{ row.confidence|default:'0' }}">
@@ -230,23 +314,25 @@
                                 <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
                             </td>
                             <td class="font-weight-bold text-dark">
-                                {{ row.student.register_number|default:row.student.registration_id }}
+                                <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">
+                                    {{ row.student.register_number|default:row.student.registration_id }}
+                                </span>
                             </td>
-                            <td class="font-weight-bold">
+                            <td class="font-weight-bold text-dark">
                                 {{ row.student.name|default:row.student.firstname|default:"Student" }}
                             </td>
                             <td>
                                 {% if row.status == 'Present' %}
                                     <span class="text-success font-weight-bold small">
-                                        <i class="fas fa-check-circle mr-1"></i> Detected in Classroom
+                                        <i class="fas fa-check-circle mr-1"></i> Recognized in Classroom Photo
                                         {% if row.confidence %}({{ row.confidence }}% match){% endif %}
                                     </span>
                                 {% else %}
                                     <span class="text-muted small">
                                         {% if row.has_photo %}
-                                            <i class="fas fa-user-xmark mr-1 text-danger"></i> Not detected in image
+                                            <i class="fas fa-user-xmark mr-1 text-danger"></i> Not detected in photo
                                         {% else %}
-                                            <i class="fas fa-triangle-exclamation mr-1 text-warning"></i> No reference photo
+                                            <i class="fas fa-triangle-exclamation mr-1 text-warning"></i> No biometric photo registered
                                         {% endif %}
                                     </span>
                                 {% endif %}
@@ -268,13 +354,12 @@
                 </table>
             </div>
 
+            <!-- Bottom Floating Save Bar -->
             <div class="mt-4 pt-3 border-top d-flex align-items-center justify-content-between flex-wrap" style="gap: 12px;">
-                <div>
-                    <span class="text-muted small">
-                        Review carefully before submitting. You can always edit attendance later via the "Edit Attendance" menu.
-                    </span>
+                <div class="text-muted small">
+                    <i class="fas fa-shield-halved text-success mr-1"></i> Review and adjust statuses before saving. Records will be archived to the institutional attendance database.
                 </div>
-                <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm" style="cursor: pointer; z-index: 10;">
+                <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm">
                     <i class="fas fa-floppy-disk mr-2"></i> Confirm & Save Attendance
                 </button>
             </div>
@@ -291,14 +376,101 @@ function previewImageName(input) {
     if (input.files && input.files[0]) {
         var name = input.files[0].name;
         document.getElementById('fileNamePreview').style.display = 'block';
-        document.getElementById('fileNamePreview').innerHTML = '<i class="fas fa-check-circle mr-1"></i> Selected: ' + name;
+        document.getElementById('fileNamePreview').innerHTML = '<i class="fas fa-check-circle mr-1"></i> Selected: <strong>' + name + '</strong>';
         document.getElementById('dropzoneContent').style.display = 'none';
     }
 }
 
+// Quick Webcam Integration for Take Attendance Page
+let quickStream = null;
+
+function switchInputMethod(mode) {
+    const uploadContainer = document.getElementById('fileUploadContainer');
+    const webcamContainer = document.getElementById('webcamCaptureContainer');
+    const uploadTab = document.getElementById('uploadTabBtn');
+    const webcamTab = document.getElementById('webcamTabBtn');
+
+    if (mode === 'webcam') {
+        uploadContainer.style.display = 'none';
+        webcamContainer.style.display = 'block';
+        uploadTab.classList.remove('btn-primary', 'active');
+        uploadTab.classList.add('btn-outline-primary');
+        webcamTab.classList.remove('btn-outline-danger');
+        webcamTab.classList.add('btn-danger', 'active');
+        startQuickWebcam();
+    } else {
+        webcamContainer.style.display = 'none';
+        uploadContainer.style.display = 'block';
+        webcamTab.classList.remove('btn-danger', 'active');
+        webcamTab.classList.add('btn-outline-danger');
+        uploadTab.classList.remove('btn-outline-primary');
+        uploadTab.classList.add('btn-primary', 'active');
+        stopQuickWebcam();
+    }
+}
+
+async function startQuickWebcam() {
+    try {
+        const video = document.getElementById('quickWebcamVideo');
+        const placeholder = document.getElementById('quickWebcamPlaceholder');
+        const snapBtn = document.getElementById('snapAndScanBtn');
+        const closeBtn = document.getElementById('closeCamBtn');
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+        });
+        quickStream = stream;
+        video.srcObject = stream;
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+        snapBtn.style.display = 'inline-block';
+        closeBtn.style.display = 'inline-block';
+    } catch(err) {
+        alert("Camera access denied or unavailable: " + err.message);
+    }
+}
+
+function stopQuickWebcam() {
+    if (quickStream) {
+        quickStream.getTracks().forEach(t => t.stop());
+        quickStream = null;
+    }
+    const video = document.getElementById('quickWebcamVideo');
+    const placeholder = document.getElementById('quickWebcamPlaceholder');
+    const snapBtn = document.getElementById('snapAndScanBtn');
+    const closeBtn = document.getElementById('closeCamBtn');
+    if (video) video.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'block';
+    if (snapBtn) snapBtn.style.display = 'none';
+    if (closeBtn) closeBtn.style.display = 'none';
+}
+
+function snapAndSubmit() {
+    const video = document.getElementById('quickWebcamVideo');
+    const canvas = document.getElementById('quickWebcamCanvas');
+    if (!video || !quickStream) return;
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(blob => {
+        const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        const fileInput = document.getElementById('classroom_image');
+        fileInput.files = dataTransfer.files;
+
+        stopQuickWebcam();
+        const form = document.getElementById('attendanceDetectionForm');
+        document.getElementById('scanBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing Classroom Photo...';
+        form.submit();
+    }, 'image/jpeg', 0.9);
+}
+
 function loadManualRoster() {
     var form = document.getElementById('attendanceDetectionForm');
-    // Clear file input
     document.getElementById('classroom_image').value = '';
     form.submit();
 }
@@ -306,11 +478,16 @@ function loadManualRoster() {
 function toggleStudentStatus(regId) {
     var input = document.getElementById('status_input_' + regId);
     var badge = document.getElementById('badge_' + regId);
+    var row = document.getElementById('row_' + regId);
     if (!input || !badge) return;
 
     var current = input.value;
     var nextStatus = (current === 'Present') ? 'Absent' : 'Present';
     input.value = nextStatus;
+
+    if (row) {
+        row.setAttribute('data-status', nextStatus.toLowerCase());
+    }
 
     if (nextStatus === 'Present') {
         badge.className = 'badge-present';
@@ -329,6 +506,10 @@ function setAllStatus(targetStatus) {
         var regId = input.id.replace('status_input_', '');
         input.value = targetStatus;
         var badge = document.getElementById('badge_' + regId);
+        var row = document.getElementById('row_' + regId);
+        if (row) {
+            row.setAttribute('data-status', targetStatus.toLowerCase());
+        }
         if (badge) {
             if (targetStatus === 'Present') {
                 badge.className = 'badge-present';
@@ -357,6 +538,31 @@ function updateCounters() {
     var dispA = document.getElementById('displayAbsent');
     if (dispP) dispP.innerText = p;
     if (dispA) dispA.innerText = a;
+
+    var btnP = document.getElementById('btnCountPresent');
+    var btnA = document.getElementById('btnCountAbsent');
+    if (btnP) btnP.innerText = p;
+    if (btnA) btnA.innerText = a;
+}
+
+function filterRoster(filterType, btn) {
+    var parent = btn.parentElement;
+    parent.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    var rows = document.querySelectorAll('.roster-row');
+    rows.forEach(function(row) {
+        var status = row.getAttribute('data-status');
+        if (filterType === 'all') {
+            row.style.display = '';
+        } else if (filterType === 'present' && status === 'present') {
+            row.style.display = '';
+        } else if (filterType === 'absent' && status === 'absent') {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
 }
 
 // Scroll to review section if present

@@ -1,20 +1,20 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Edit Attendance | Face Attendance System{% endblock %}
+{% block title %}Edit Attendance | Smart Face Attendance System{% endblock %}
 
 {% block content %}
 <div class="row align-items-center mb-4">
     <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
+        <h2 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">
             <i class="fas fa-user-pen text-warning mr-2"></i> Edit Attendance Records
         </h2>
         <p class="text-muted mb-0">
-            Select a class, period, and date to edit student attendance. Manually toggle between Present and Absent with 1-click controls.
+            Select an academic department, year, section, period, and date to manually adjust student attendance with 1-click controls.
         </p>
     </div>
     <div class="col-md-4 text-md-right mt-3 mt-md-0">
-        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary font-weight-bold" style="border-radius: 10px;">
+        <a href="{% url 'take_attendance' %}" class="btn btn-modern-primary font-weight-bold">
             <i class="fas fa-camera mr-1"></i> Take Attendance (AI)
         </a>
     </div>
@@ -22,14 +22,16 @@
 
 <!-- Class & Session Selector Filter -->
 <div class="card-modern mb-4">
-    <div class="card-header-modern bg-light">
-        <span><i class="fas fa-filter text-primary mr-2"></i> Select Class & Session to Edit</span>
+    <div class="card-header-modern bg-white">
+        <span class="d-flex align-items-center font-weight-bold">
+            <i class="fas fa-filter text-primary mr-2"></i> Select Class & Academic Session to Edit
+        </span>
     </div>
     <div class="card-body-modern">
         <form method="GET" action="{% url 'edit_attendance' %}">
             <div class="row">
                 <div class="col-md-3 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Branch</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-building text-primary mr-1"></i> Branch / Dept</label>
                     <select name="branch" class="form-control form-control-modern" required>
                         {% for b in branches %}
                             <option value="{{ b }}" {% if selected_branch == b %}selected{% endif %}>{{ b }}</option>
@@ -38,7 +40,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Year</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-calendar-days text-primary mr-1"></i> Year</label>
                     <select name="year" class="form-control form-control-modern" required>
                         {% for y in years %}
                             <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>Year {{ y }}</option>
@@ -47,7 +49,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Section</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-users-rectangle text-primary mr-1"></i> Section</label>
                     <select name="section" class="form-control form-control-modern" required>
                         {% for sec in sections %}
                             <option value="{{ sec }}" {% if selected_section == sec %}selected{% endif %}>Section {{ sec }}</option>
@@ -56,7 +58,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small">Period</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-clock text-primary mr-1"></i> Period</label>
                     <select name="period" class="form-control form-control-modern" required>
                         {% for p in periods %}
                             <option value="{{ p }}" {% if selected_period == p %}selected{% endif %}>Period {{ p }}</option>
@@ -65,11 +67,11 @@
                 </div>
 
                 <div class="col-md-3 col-sm-12 mb-3">
-                    <label class="font-weight-bold text-dark small">Date</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-calendar-day text-primary mr-1"></i> Attendance Date</label>
                     <div class="input-group">
                         <input type="date" name="date" class="form-control form-control-modern" value="{{ selected_date }}" required>
                         <div class="input-group-append">
-                            <button type="submit" class="btn btn-primary px-3" style="border-top-right-radius: 10px; border-bottom-right-radius: 10px;">
+                            <button type="submit" class="btn btn-modern-primary px-3" style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
                                 <i class="fas fa-search mr-1"></i> Load
                             </button>
                         </div>
@@ -94,23 +96,23 @@
     <div class="card-modern mb-5">
         <div class="card-header-modern bg-white d-flex justify-content-between align-items-center flex-wrap" style="gap: 12px;">
             <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
-                <span class="font-weight-bold">
-                    {{ selected_branch }} Year {{ selected_year }}-{{ selected_section }} &bull; Period {{ selected_period }} &bull; {{ selected_date }}
+                <span class="font-weight-bold text-dark">
+                    <span class="badge badge-dept mr-1">{{ selected_branch }}</span> Year {{ selected_year }}-{{ selected_section }} &bull; Period {{ selected_period }} &bull; {{ selected_date }}
                 </span>
                 {% if not has_records %}
-                    <span class="badge badge-secondary font-weight-normal">Initial roster loaded</span>
+                    <span class="badge badge-secondary font-weight-normal">Initial roster</span>
                 {% else %}
-                    <span class="badge badge-success font-weight-normal">Existing Records Loaded</span>
+                    <span class="badge badge-success font-weight-normal"><i class="fas fa-check-circle mr-1"></i>Existing Record</span>
                 {% endif %}
             </div>
             <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
-                <button type="button" class="btn btn-sm btn-outline-success" onclick="setAllStatus('Present')">
+                <button type="button" class="btn btn-sm btn-outline-success font-weight-bold" onclick="setAllStatus('Present')">
                     <i class="fas fa-check-double mr-1"></i> Mark All Present
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="setAllStatus('Absent')">
+                <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" onclick="setAllStatus('Absent')">
                     <i class="fas fa-xmark mr-1"></i> Mark All Absent
                 </button>
-                <button type="submit" class="btn btn-sm btn-modern-success px-3 font-weight-bold ml-md-2" style="cursor: pointer; z-index: 10;">
+                <button type="submit" class="btn btn-sm btn-modern-success px-3 font-weight-bold ml-md-2">
                     <i class="fas fa-floppy-disk mr-1"></i> Save Changes
                 </button>
             </div>
@@ -120,43 +122,49 @@
             <!-- Summary Counts -->
             <div class="row mb-4">
                 <div class="col-md-4 col-12 mb-2">
-                    <div class="stat-card p-3">
+                    <div class="stat-card p-3 card-primary">
                         <div>
                             <div class="stat-label">Total Students</div>
                             <div class="h4 font-weight-bold mb-0 text-dark">{{ total_students }}</div>
                         </div>
-                        <i class="fas fa-users text-primary fa-lg"></i>
+                        <div class="stat-icon" style="background: #eff6ff; color: #1e40af; width: 44px; height: 44px; font-size: 1.2rem;">
+                            <i class="fas fa-users"></i>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-4 col-6 mb-2">
-                    <div class="stat-card p-3">
+                    <div class="stat-card p-3 card-success">
                         <div>
-                            <div class="stat-label">Present</div>
+                            <div class="stat-label">Present Count</div>
                             <div class="h4 font-weight-bold mb-0 text-success" id="displayPresent">{{ present_count }}</div>
                         </div>
-                        <i class="fas fa-circle-check text-success fa-lg"></i>
+                        <div class="stat-icon" style="background: #d1fae5; color: #059669; width: 44px; height: 44px; font-size: 1.2rem;">
+                            <i class="fas fa-circle-check"></i>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-4 col-6 mb-2">
-                    <div class="stat-card p-3">
+                    <div class="stat-card p-3 card-warning">
                         <div>
-                            <div class="stat-label">Absent</div>
+                            <div class="stat-label">Absent Count</div>
                             <div class="h4 font-weight-bold mb-0 text-danger" id="displayAbsent">{{ absent_count }}</div>
                         </div>
-                        <i class="fas fa-circle-xmark text-danger fa-lg"></i>
+                        <div class="stat-icon" style="background: #fee2e2; color: #dc2626; width: 44px; height: 44px; font-size: 1.2rem;">
+                            <i class="fas fa-circle-xmark"></i>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div class="table-responsive">
-                <table class="table table-hover align-middle" style="font-size: 0.95rem;">
-                    <thead class="thead-light">
+                <table class="table table-modern" style="font-size: 0.94rem;">
+                    <thead>
                         <tr>
                             <th style="width: 70px;">Photo</th>
-                            <th>Registration ID</th>
+                            <th>Student ID</th>
                             <th>Student Name</th>
                             <th class="text-center" style="width: 140px;">Current Status</th>
-                            <th class="text-center" style="width: 180px;">Action</th>
+                            <th class="text-center" style="width: 180px;">1-Click Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -169,9 +177,11 @@
                                 <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
                             </td>
                             <td class="font-weight-bold text-dark">
-                                {{ row.student.register_number|default:row.student.registration_id }}
+                                <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">
+                                    {{ row.student.register_number|default:row.student.registration_id }}
+                                </span>
                             </td>
-                            <td class="font-weight-bold">
+                            <td class="font-weight-bold text-dark">
                                 {{ row.student.name|default:row.student.firstname|default:"Student" }}
                             </td>
                             <td class="text-center">
@@ -193,9 +203,9 @@
 
             <div class="mt-4 pt-3 border-top d-flex align-items-center justify-content-between flex-wrap" style="gap: 12px;">
                 <span class="text-muted small">
-                    Click "Toggle Status" to flip any student between Present and Absent, then click Save Changes.
+                    <i class="fas fa-info-circle text-primary mr-1"></i> Click "Toggle Status" to flip any student between Present and Absent, then click Save Changes.
                 </span>
-                <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm" style="cursor: pointer; z-index: 10;">
+                <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm">
                     <i class="fas fa-floppy-disk mr-2"></i> Save Changes to Database
                 </button>
             </div>
@@ -205,7 +215,9 @@
 {% else %}
 <div class="card-modern text-center py-5">
     <div class="py-4">
-        <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+        <div class="stat-icon mx-auto mb-3" style="background: #f1f5f9; color: #94a3b8; width: 64px; height: 64px; font-size: 1.8rem;">
+            <i class="fas fa-users-slash"></i>
+        </div>
         <h5 class="font-weight-bold text-dark mb-1">No Students Found for this Class</h5>
         <p class="text-muted small mb-3">Please check your Branch, Year, and Section filters or enroll students first.</p>
         <a href="{% url 'add_student' %}" class="btn btn-modern-primary">Add Students Now</a>

@@ -4,12 +4,16 @@ from django.conf import settings
 import os
 import io
 import json
+import base64
+import re
 from datetime import date, datetime
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
+from django.db import IntegrityError
 from django.db.models import Count, Q
 
 from .forms import CreateStudentForm, FacultyForm
@@ -661,27 +665,201 @@ def loginPage(request):
     if request.user.is_authenticated:
         return redirect('home')
 
-    if request.method == 'POST':
-        username = request.POST.get('username', '').strip()
-        password = request.POST.get('password', '')
-
-        user = authenticate(request, username=username, password=password)
-        if user is None and username:
-            try:
-                from django.contrib.auth.models import User
-                matched_user = User.objects.get(username__iexact=username)
-                user = authenticate(request, username=matched_user.username, password=password)
-            except Exception:
-                user = None
-
-        if user is not None:
-            login(request, user)
-            return redirect('home')
-        else:
-            messages.error(request, 'Invalid username or password')
-
     context = {}
+
+    if request.method == 'POST':
+        login_input = request.POST.get('username', '').strip()
+        raw_password = request.POST.get('password', '')
+        password = raw_password.strip()
+
+        context['entered_username'] = login_input
+
+        if not login_input:
+            messages.error(request, 'Please enter your username or registered email address.')
+            return render(request, 'attendence_sys/login.html', context)
+
+        if not raw_password:
+            messages.error(request, 'Please enter your password.')
+            return render(request, 'attendence_sys/login.html', context)
+
+        # 1. Flexible case-insensitive search across username, clean username, email, full name, phone
+        clean_input = re.sub(r'\s+', '_', login_input)
+        matched_user = User.objects.filter(
+            Q(username__iexact=login_input) |
+            Q(username__iexact=clean_input) |
+            Q(email__iexact=login_input) |
+            Q(first_name__iexact=login_input) |
+            Q(faculty__firstname__iexact=login_input) |
+            Q(faculty__email__iexact=login_input) |
+            Q(faculty__phone__iexact=login_input)
+        ).first()
+
+        user = None
+
+        if matched_user:
+            # Check password directly against matched user
+            if matched_user.check_password(raw_password) or (password != raw_password and matched_user.check_password(password)):
+                matched_user.backend = 'django.contrib.auth.backends.ModelBackend'
+                user = matched_user
+            else:
+                user = authenticate(request, username=matched_user.username, password=raw_password)
+                if user is None and password != raw_password:
+                    user = authenticate(request, username=matched_user.username, password=password)
+
+            if user is not None:
+                if not user.is_active:
+                    messages.error(request, 'This account is currently inactive. Please contact an administrator.')
+                    return render(request, 'attendence_sys/login.html', context)
+                login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                messages.success(request, f"Welcome back, {user.first_name or user.username}!")
+                next_url = request.GET.get('next') or request.POST.get('next') or 'home'
+                return redirect(next_url)
+            else:
+                context['account_found'] = True
+                context['found_username'] = matched_user.username
+                messages.error(request, f"Incorrect password for '{matched_user.username}'. Please check your password or click 'Reset Password' below.")
+                return render(request, 'attendence_sys/login.html', context)
+        else:
+            # Fallback direct authenticate
+            user = authenticate(request, username=login_input, password=raw_password)
+            if user is not None:
+                login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                messages.success(request, f"Welcome back, {user.first_name or user.username}!")
+                next_url = request.GET.get('next') or request.POST.get('next') or 'home'
+                return redirect(next_url)
+            else:
+                context['account_not_found'] = True
+                messages.error(request, f"No user account found matching '{login_input}'. If you haven't created an account yet, click 'Create New Account' below.")
+                return render(request, 'attendence_sys/login.html', context)
+
     return render(request, 'attendence_sys/login.html', context)
+
+
+def registerPage(request):
+    """
+    Creates a new user and faculty profile, then logs them in.
+    If the account already exists with the same email, safely updates the password and logs in.
+    """
+    if request.user.is_authenticated:
+        return redirect('home')
+
+    context = {
+        'initial_username': request.GET.get('username', '').strip(),
+        'initial_email': request.GET.get('email', '').strip(),
+    }
+
+    if request.method == 'POST':
+        firstname = request.POST.get('firstname', '').strip()
+        lastname = request.POST.get('lastname', '').strip()
+        raw_username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip().lower()
+        phone = request.POST.get('phone', '').strip()
+        raw_password = request.POST.get('password', '')
+        password = raw_password.strip()
+        confirm_password = request.POST.get('confirm_password', '').strip()
+
+        context.update({
+            'entered_firstname': firstname,
+            'entered_lastname': lastname,
+            'initial_username': raw_username,
+            'initial_email': email,
+            'entered_phone': phone,
+        })
+
+        if not raw_username:
+            messages.error(request, "Username is required.")
+            return render(request, 'attendence_sys/register.html', context)
+
+        # Normalize username (convert spaces to underscores)
+        clean_username = re.sub(r'\s+', '_', raw_username)
+
+        # Check if username or email already exists
+        existing_user = User.objects.filter(
+            Q(username__iexact=raw_username) |
+            Q(username__iexact=clean_username) |
+            (Q(email__iexact=email) if email else Q())
+        ).first()
+
+        if existing_user:
+            # If same email or password matches, update credentials and log in seamlessly
+            if (email and existing_user.email and email == existing_user.email.lower()) or existing_user.check_password(password):
+                existing_user.set_password(password)
+                existing_user.is_active = True
+                existing_user.is_staff = True
+                if firstname:
+                    existing_user.first_name = firstname
+                if lastname:
+                    existing_user.last_name = lastname
+                existing_user.save()
+
+                faculty_obj, _ = Faculty.objects.get_or_create(user=existing_user)
+                if firstname:
+                    faculty_obj.firstname = firstname
+                if lastname:
+                    faculty_obj.lastname = lastname
+                if email:
+                    faculty_obj.email = email
+                if phone:
+                    faculty_obj.phone = phone
+                faculty_obj.save()
+
+                login(request, existing_user, backend='django.contrib.auth.backends.ModelBackend')
+                messages.success(request, f"Welcome, {existing_user.first_name or existing_user.username}! You are now signed in.")
+                return redirect('home')
+            else:
+                messages.error(request, f"An account with username '{clean_username}' already exists. Please log in with your password, or choose a different username.")
+                return render(request, 'attendence_sys/register.html', context)
+
+        if not password:
+            messages.error(request, "Password is required.")
+            return render(request, 'attendence_sys/register.html', context)
+
+        if len(password) < 6:
+            messages.error(request, "Password must be at least 6 characters long.")
+            return render(request, 'attendence_sys/register.html', context)
+
+        if password != confirm_password:
+            messages.error(request, "Passwords do not match.")
+            return render(request, 'attendence_sys/register.html', context)
+
+        # Create the user safely
+        display_first = firstname or raw_username
+        try:
+            user = User.objects.create_user(
+                username=clean_username,
+                email=email,
+                password=password,
+                first_name=display_first,
+                last_name=lastname
+            )
+            user.is_staff = True
+            user.save()
+        except IntegrityError:
+            existing_user = User.objects.filter(Q(username__iexact=clean_username) | (Q(email__iexact=email) if email else Q())).first()
+            if existing_user:
+                existing_user.set_password(password)
+                existing_user.save()
+                login(request, existing_user, backend='django.contrib.auth.backends.ModelBackend')
+                messages.success(request, f"Welcome, {existing_user.first_name or existing_user.username}! You are now signed in.")
+                return redirect('home')
+            messages.error(request, f"An account with username '{clean_username}' or email '{email}' already exists. Please log in.")
+            return render(request, 'attendence_sys/register.html', context)
+
+        # Update or create linked Faculty record
+        faculty_obj, _ = Faculty.objects.get_or_create(user=user)
+        faculty_obj.firstname = display_first
+        faculty_obj.lastname = lastname
+        faculty_obj.email = email
+        if phone:
+            faculty_obj.phone = phone
+        faculty_obj.save()
+
+        # Log in the user immediately
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        messages.success(request, f"Account created successfully! Welcome, {user.first_name}.")
+        return redirect('home')
+
+    return render(request, 'attendence_sys/register.html', context)
 
 
 @login_required(login_url='login')
@@ -857,3 +1035,423 @@ def studentPhotoById(request, photo_id):
             return HttpResponse(img_bytes, content_type=content_type)
 
     return HttpResponse(status=404)
+
+
+@login_required(login_url='login')
+def liveAttendancePage(request):
+    """
+    Real-time interactive live camera / webcam attendance dashboard.
+    Streams video from user webcam, detects enrolled faces on-the-fly,
+    displays live tracking HUD and dynamic roster updates.
+    """
+    branches = ['CSE', 'IT', 'ECE', 'EEE', 'MECH', 'CHEM', 'CIVIL']
+    years = ['1', '2', '3', '4']
+    sections = ['A', 'B', 'C']
+    periods = ['1', '2', '3', '4', '5', '6', '7']
+    today_str = str(date.today())
+
+    branch = request.GET.get('branch', 'CSE')
+    year = request.GET.get('year', '3')
+    section = request.GET.get('section', 'C')
+    period = request.GET.get('period', '1')
+    date_val = request.GET.get('date', today_str)
+
+    students = Student.objects.filter(
+        branch__iexact=branch,
+        year=str(year),
+        section__iexact=section
+    ).order_by('register_number', 'registration_id')
+    if not students.exists():
+        students = Student.objects.filter(
+            department__iexact=branch,
+            year=str(year),
+            section__iexact=section
+        ).order_by('register_number', 'registration_id')
+
+    context = {
+        'branches': branches,
+        'years': years,
+        'sections': sections,
+        'periods': periods,
+        'today_str': today_str,
+        'selected_branch': branch,
+        'selected_year': year,
+        'selected_section': section,
+        'selected_period': period,
+        'selected_date': date_val,
+        'enrolled_students': students,
+        'total_enrolled': students.count(),
+    }
+    return render(request, 'attendence_sys/live_attendance.html', context)
+
+
+@login_required(login_url='login')
+def getClassRoster(request):
+    """
+    Returns the enrolled students for the specified branch, year, section as JSON.
+    """
+    branch = request.GET.get('branch', 'CSE').strip()
+    year = request.GET.get('year', '1').strip()
+    section = request.GET.get('section', 'A').strip().upper()
+
+    students = Student.objects.filter(
+        branch__iexact=branch,
+        year=str(year),
+        section__iexact=section
+    ).order_by('register_number', 'registration_id')
+    if not students.exists():
+        students = Student.objects.filter(
+            department__iexact=branch,
+            year=str(year),
+            section__iexact=section
+        ).order_by('register_number', 'registration_id')
+
+    roster = [{
+        'id': s.id,
+        'student_id': s.register_number or s.registration_id or f"STU-{s.id}",
+        'name': s.name or s.firstname or 'Student',
+        'photo_url': s.get_primary_photo_url(),
+        'has_photo': bool(s.profile_pic.name != '' or s.photos.exists())
+    } for s in students]
+
+    return JsonResponse({'success': True, 'roster': roster, 'total': len(roster)})
+
+
+@login_required(login_url='login')
+def liveScanFrame(request):
+    """
+    Receives a webcam video frame snapshot, detects faces,
+    and matches against students enrolled in the designated class.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+
+    image_data = data.get('image')
+    if not image_data:
+        return JsonResponse({'success': False, 'error': 'No image provided'}, status=400)
+
+    branch = data.get('branch', 'CSE').strip()
+    year = str(data.get('year', '1')).strip()
+    section = data.get('section', 'A').strip().upper()
+    try:
+        tolerance = float(data.get('tolerance', 0.55))
+    except (ValueError, TypeError):
+        tolerance = 0.55
+
+    # Decode base64 image data
+    if ',' in image_data:
+        image_data = image_data.split(',', 1)[1]
+
+    try:
+        img_bytes = base64.b64decode(image_data)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img_bgr is None:
+            return JsonResponse({'success': False, 'error': 'Failed to decode image frame'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Invalid image data: {e}'}, status=400)
+
+    orig_h, orig_w = img_bgr.shape[:2]
+    # Resize for detection speed while preserving quality
+    max_dim = 960
+    scale = 1.0
+    if max(orig_h, orig_w) > max_dim:
+        scale = max_dim / float(max(orig_h, orig_w))
+        proc_img = cv2.resize(img_bgr, (int(orig_w * scale), int(orig_h * scale)), interpolation=cv2.INTER_AREA)
+    else:
+        proc_img = img_bgr
+
+    img_rgb = cv2.cvtColor(proc_img, cv2.COLOR_BGR2RGB)
+
+    # 1. Detect faces and encodings
+    detected_locations = face_recognition.face_locations(img_rgb, model='hog')
+    detected_encodings = face_recognition.face_encodings(img_rgb, detected_locations)
+
+    # 2. Query enrolled students for this class
+    students = Student.objects.filter(
+        branch__iexact=branch,
+        year=str(year),
+        section__iexact=section
+    ).order_by('register_number', 'registration_id')
+    if not students.exists():
+        students = Student.objects.filter(
+            department__iexact=branch,
+            year=str(year),
+            section__iexact=section
+        ).order_by('register_number', 'registration_id')
+
+    # Pre-extract cached student encodings
+    enrolled_list = []
+    for s in students:
+        enc = get_student_face_encoding(s)
+        if enc is not None:
+            enrolled_list.append({
+                'id': s.id,
+                'student_id': s.register_number or s.registration_id or f"STU-{s.id}",
+                'name': s.name or s.firstname or 'Student',
+                'encoding': enc,
+                'photo_url': s.get_primary_photo_url()
+            })
+
+    face_boxes = []
+    matched_students = []
+    used_student_ids = set()
+
+    # 3. Match detected faces against enrolled students
+    for loc, face_enc in zip(detected_locations, detected_encodings):
+        top, right, bottom, left = loc
+        # Scale back to original frame dimensions
+        if scale != 1.0:
+            top = int(round(top / scale))
+            right = int(round(right / scale))
+            bottom = int(round(bottom / scale))
+            left = int(round(left / scale))
+
+        best_student = None
+        min_dist = 1.0
+
+        for s_info in enrolled_list:
+            if s_info['id'] in used_student_ids:
+                continue
+            dist = float(face_recognition.face_distance([s_info['encoding']], face_enc)[0])
+            if dist < min_dist and dist <= tolerance:
+                min_dist = dist
+                best_student = s_info
+
+        if best_student:
+            used_student_ids.add(best_student['id'])
+            confidence = round(max(0.0, (1.0 - min_dist) * 100), 1)
+            face_boxes.append({
+                'top': top,
+                'right': right,
+                'bottom': bottom,
+                'left': left,
+                'matched': True,
+                'name': best_student['name'],
+                'student_id': best_student['student_id'],
+                'confidence': confidence,
+            })
+            matched_students.append({
+                'id': best_student['id'],
+                'student_id': best_student['student_id'],
+                'name': best_student['name'],
+                'confidence': confidence,
+                'photo_url': best_student['photo_url'],
+            })
+        else:
+            face_boxes.append({
+                'top': top,
+                'right': right,
+                'bottom': bottom,
+                'left': left,
+                'matched': False,
+                'name': 'Unrecognized Face',
+                'student_id': '',
+                'confidence': 0.0,
+            })
+
+    return JsonResponse({
+        'success': True,
+        'frame_width': orig_w,
+        'frame_height': orig_h,
+        'total_detected': len(detected_locations),
+        'matched_count': len(matched_students),
+        'matched_students': matched_students,
+        'face_boxes': face_boxes,
+    })
+
+
+@login_required(login_url='login')
+def liveSaveAttendance(request):
+    """
+    Saves or updates attendance records from live webcam session.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+
+    branch = data.get('branch', 'CSE').strip()
+    year = str(data.get('year', '1')).strip()
+    section = data.get('section', 'A').strip().upper()
+    period = str(data.get('period', '1')).strip()
+    raw_date = data.get('date', '').strip()
+    date_obj, date_iso = normalize_date_input(raw_date)
+
+    records = data.get('records', [])
+    if not records:
+        return JsonResponse({'success': False, 'error': 'No attendance records received'}, status=400)
+
+    faculty = getattr(request.user, 'faculty', None)
+    faculty_name = str(faculty) if faculty else request.user.username
+
+    session, _ = AttendanceSession.objects.get_or_create(
+        date=date_obj,
+        department=branch,
+        year=year,
+        section=section,
+        defaults={'teacher': faculty_name}
+    )
+
+    saved_present = 0
+    saved_absent = 0
+
+    for rec in records:
+        s_id = str(rec.get('student_id', '')).strip()
+        status = rec.get('status', 'Absent')
+        try:
+            confidence = float(rec.get('confidence', 0.0))
+        except (ValueError, TypeError):
+            confidence = 0.0
+
+        if not s_id:
+            continue
+
+        student_obj = Student.objects.filter(
+            Q(register_number=s_id) | Q(registration_id=s_id)
+        ).first()
+
+        attend_entry, created = Attendence.objects.update_or_create(
+            date=date_obj,
+            branch=branch,
+            year=year,
+            section=section,
+            period=period,
+            Student_ID=s_id,
+            defaults={
+                'session': session,
+                'student_ref': student_obj,
+                'Faculty_Name': faculty_name,
+                'status': status,
+                'confidence': confidence if status == 'Present' else 0.0
+            }
+        )
+
+        if status == 'Present':
+            saved_present += 1
+        else:
+            saved_absent += 1
+
+    messages.success(
+        request,
+        f"Live Attendance Saved! {saved_present} Present, {saved_absent} Absent for {branch} Year {year}-{section} Period {period} on {date_iso}."
+    )
+
+    return JsonResponse({
+        'success': True,
+        'saved_present': saved_present,
+        'saved_absent': saved_absent,
+        'total': saved_present + saved_absent,
+        'redirect_url': f"/searchattendence/?branch={branch}&year={year}&section={section}&period={period}&date={date_iso}"
+    })
+
+
+def passwordResetPage(request):
+    """
+    Self-service password reset.
+    Verifies user identity by username and registered email address,
+    and sets a new secure password.
+    """
+    if request.user.is_authenticated:
+        return redirect('home')
+
+    context = {}
+
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip().lower()
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        context['entered_username'] = username
+        context['entered_email'] = email
+
+        if not username:
+            messages.error(request, "Please enter your username.")
+            return render(request, 'attendence_sys/password_reset.html', context)
+
+        clean_user = re.sub(r'\s+', '_', username)
+        user = User.objects.filter(
+            Q(username__iexact=username) |
+            Q(username__iexact=clean_user) |
+            Q(email__iexact=username) |
+            (Q(email__iexact=email) if email else Q()) |
+            Q(first_name__iexact=username)
+        ).first()
+
+        if not user:
+            context['user_not_found'] = True
+            messages.error(request, f"No user account found for username '{username}'.")
+            return render(request, 'attendence_sys/password_reset.html', context)
+
+        user_email = (user.email or '').strip().lower()
+        faculty_email = (getattr(getattr(user, 'faculty', None), 'email', '') or '').strip().lower()
+        has_registered_email = bool(user_email or faculty_email)
+
+        if has_registered_email:
+            if not email:
+                messages.error(request, "Please enter the registered email address associated with this account to verify identity.")
+                return render(request, 'attendence_sys/password_reset.html', context)
+            if email != user_email and email != faculty_email:
+                messages.error(request, "Verification failed: Email does not match the registered account email.")
+                return render(request, 'attendence_sys/password_reset.html', context)
+
+        if not new_password:
+            messages.error(request, "Please enter a new password.")
+            return render(request, 'attendence_sys/password_reset.html', context)
+
+        if len(new_password) < 6:
+            messages.error(request, "Password must be at least 6 characters long.")
+            return render(request, 'attendence_sys/password_reset.html', context)
+
+        if new_password != confirm_password:
+            messages.error(request, "New password and confirm password do not match.")
+            return render(request, 'attendence_sys/password_reset.html', context)
+
+        user.set_password(new_password)
+        user.save()
+
+        messages.success(request, f"Password for '{user.username}' was reset successfully! You can now log in.")
+        return redirect('login')
+
+    return render(request, 'attendence_sys/password_reset.html', context)
+
+
+@login_required(login_url='login')
+def changePasswordView(request):
+    """
+    Allows authenticated users to change their password from their profile page.
+    """
+    if request.method == 'POST':
+        old_password = request.POST.get('old_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        if not request.user.check_password(old_password):
+            messages.error(request, "Incorrect current password.")
+            return redirect('account')
+
+        if len(new_password) < 6:
+            messages.error(request, "New password must be at least 6 characters long.")
+            return redirect('account')
+
+        if new_password != confirm_password:
+            messages.error(request, "New password and confirmation password do not match.")
+            return redirect('account')
+
+        request.user.set_password(new_password)
+        request.user.save()
+        update_session_auth_hash(request, request.user)
+
+        messages.success(request, "Your password has been changed successfully!")
+        return redirect('account')
+
+    return redirect('account')

@@ -1,20 +1,20 @@
 {% extends 'attendence_sys/main.html' %}
 {% load static %}
 
-{% block title %}Add Students | Face Attendance System{% endblock %}
+{% block title %}Add Students | Smart Face Attendance System{% endblock %}
 
 {% block content %}
 <div class="row align-items-center mb-4">
-    <div class="col-md-8">
-        <h2 class="font-weight-bold text-dark mb-1">
+    <div class="col-md-7">
+        <h2 class="font-weight-bold text-dark mb-1" style="letter-spacing: -0.02em;">
             <i class="fas fa-user-plus text-success mr-2"></i> Student Enrollment & Registration
         </h2>
         <p class="text-muted mb-0">
-            Register students individually or bulk-import entire rosters from an Excel/CSV file with Google Drive photo integration.
+            Register students individually or bulk-import entire class rosters from an Excel/CSV spreadsheet with automated Google Drive photo downloading.
         </p>
     </div>
-    <div class="col-md-4 text-md-right mt-3 mt-md-0">
-        <a href="{% url 'download_excel_template' %}" class="btn btn-outline-success font-weight-bold mr-2" style="border-radius: 10px;">
+    <div class="col-md-5 text-md-right mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end" style="gap: 8px;">
+        <a href="{% url 'download_excel_template' %}" class="btn btn-outline-success font-weight-bold" style="border-radius: 10px;">
             <i class="fas fa-file-excel mr-1"></i> Download Template
         </a>
         <a href="{% url 'student_directory' %}" class="btn btn-outline-primary font-weight-bold" style="border-radius: 10px;">
@@ -25,16 +25,16 @@
 
 <div class="card-modern mb-5">
     <!-- Navigation Tabs -->
-    <div class="card-header-modern bg-light border-bottom p-0">
-        <ul class="nav nav-tabs border-0 px-3 pt-2" id="studentTab" role="tablist">
+    <div class="card-header-modern bg-white border-bottom p-0">
+        <ul class="nav nav-tabs border-0 px-3 pt-3" id="studentTab" role="tablist" style="gap: 6px;">
             <li class="nav-item">
-                <a class="nav-link font-weight-bold {% if active_tab != 'bulk' %}active bg-white border-bottom-0{% endif %}" id="single-tab" data-toggle="tab" href="#single" role="tab" aria-controls="single" aria-selected="{% if active_tab != 'bulk' %}true{% else %}false{% endif %}" style="border-radius: 10px 10px 0 0; padding: 12px 24px;">
-                    <i class="fas fa-user mr-2 text-primary"></i> Single Student Entry
+                <a class="nav-link font-weight-bold {% if active_tab != 'bulk' %}active bg-white border-bottom-0 text-primary{% else %}text-muted{% endif %}" id="single-tab" data-toggle="tab" href="#single" role="tab" aria-controls="single" aria-selected="{% if active_tab != 'bulk' %}true{% else %}false{% endif %}" style="border-radius: 10px 10px 0 0; padding: 12px 24px;">
+                    <i class="fas fa-user mr-2 text-primary"></i> Single Student Registration
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link font-weight-bold {% if active_tab == 'bulk' %}active bg-white border-bottom-0{% endif %}" id="bulk-tab" data-toggle="tab" href="#bulk" role="tab" aria-controls="bulk" aria-selected="{% if active_tab == 'bulk' %}true{% else %}false{% endif %}" style="border-radius: 10px 10px 0 0; padding: 12px 24px;">
-                    <i class="fas fa-file-excel mr-2 text-success"></i> Bulk Import via Excel & Drive Links
+                <a class="nav-link font-weight-bold {% if active_tab == 'bulk' %}active bg-white border-bottom-0 text-success{% else %}text-muted{% endif %}" id="bulk-tab" data-toggle="tab" href="#bulk" role="tab" aria-controls="bulk" aria-selected="{% if active_tab == 'bulk' %}true{% else %}false{% endif %}" style="border-radius: 10px 10px 0 0; padding: 12px 24px;">
+                    <i class="fas fa-file-excel mr-2 text-success"></i> Bulk Excel Import & Drive Links
                     <span class="badge badge-success ml-1">Automated</span>
                 </a>
             </li>
@@ -52,22 +52,30 @@
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">Registration ID / Roll No <span class="text-danger">*</span></label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-id-badge text-primary mr-1"></i> Registration ID / Roll No <span class="text-danger">*</span>
+                            </label>
                             <input type="text" name="registration_id" class="form-control form-control-modern" placeholder="e.g. 715524104040" required>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="font-weight-bold text-dark small">First Name</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-user text-primary mr-1"></i> First Name
+                            </label>
                             <input type="text" name="firstname" class="form-control form-control-modern" placeholder="e.g. Sravya">
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="font-weight-bold text-dark small">Last Name</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-user text-primary mr-1"></i> Last Name
+                            </label>
                             <input type="text" name="lastname" class="form-control form-control-modern" placeholder="e.g. Galla">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="font-weight-bold text-dark small">Branch / Department <span class="text-danger">*</span></label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-building text-primary mr-1"></i> Department / Branch <span class="text-danger">*</span>
+                            </label>
                             <select name="branch" class="form-control form-control-modern" required>
                                 <option value="CSE">CSE</option>
                                 <option value="IT">IT</option>
@@ -79,7 +87,9 @@
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="font-weight-bold text-dark small">Year <span class="text-danger">*</span></label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-calendar-days text-primary mr-1"></i> Academic Year <span class="text-danger">*</span>
+                            </label>
                             <select name="year" class="form-control form-control-modern" required>
                                 <option value="1">1st Year</option>
                                 <option value="2">2nd Year</option>
@@ -88,22 +98,28 @@
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="font-weight-bold text-dark small">Section <span class="text-danger">*</span></label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-users-rectangle text-primary mr-1"></i> Section <span class="text-danger">*</span>
+                            </label>
                             <select name="section" class="form-control form-control-modern" required>
-                                <option value="A" selected>A</option>
-                                <option value="B">B</option>
-                                <option value="C">C</option>
+                                <option value="A" selected>Section A</option>
+                                <option value="B">Section B</option>
+                                <option value="C">Section C</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">Email Address</label>
-                            <input type="email" name="email" class="form-control form-control-modern" placeholder="student@example.com">
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-envelope text-primary mr-1"></i> Institutional Email Address
+                            </label>
+                            <input type="email" name="email" class="form-control form-control-modern" placeholder="student@institution.edu">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="font-weight-bold text-dark small">Phone Number</label>
+                            <label class="font-weight-bold text-dark small">
+                                <i class="fas fa-phone text-primary mr-1"></i> Contact Phone
+                            </label>
                             <input type="text" name="phone" class="form-control form-control-modern" placeholder="9876543210">
                         </div>
                     </div>
@@ -112,40 +128,40 @@
 
                     <!-- Photo Options -->
                     <h6 class="font-weight-bold text-dark mb-3">
-                        <i class="fas fa-camera text-primary mr-2"></i> Student Profile Picture (Choose Either Option)
+                        <i class="fas fa-camera text-primary mr-2"></i> Student Biometric Photo (Choose Either Option)
                     </h6>
 
                     <div class="row">
                         <!-- Option A: Google Drive Link -->
                         <div class="col-md-6 mb-3">
-                            <div class="p-3 border rounded h-100 bg-light">
+                            <div class="p-3 border rounded h-100 bg-light" style="border-radius: 12px !important;">
                                 <label class="font-weight-bold text-dark small d-flex align-items-center">
-                                    <i class="fab fa-google-drive text-primary mr-2 fa-lg"></i> Option A: Google Drive Image Link
+                                    <i class="fab fa-google-drive text-primary mr-2 fa-lg"></i> Option A: Google Drive Image URL
                                 </label>
                                 <input type="url" name="drive_link" class="form-control form-control-modern" placeholder="https://drive.google.com/file/d/YOUR_FILE_ID/view?usp=sharing">
                                 <small class="text-muted d-block mt-2">
-                                    Paste a Google Drive share link. Make sure link access is set to <em>"Anyone with the link can view"</em>. The system will download and store it in the database automatically.
+                                    Paste a Google Drive share link. Make sure link sharing is set to <em>"Anyone with the link can view"</em>. The system will automatically download and crop the face.
                                 </small>
                             </div>
                         </div>
 
                         <!-- Option B: Direct File Upload -->
                         <div class="col-md-6 mb-3">
-                            <div class="p-3 border rounded h-100 bg-light">
+                            <div class="p-3 border rounded h-100 bg-light" style="border-radius: 12px !important;">
                                 <label class="font-weight-bold text-dark small d-flex align-items-center">
                                     <i class="fas fa-upload text-success mr-2 fa-lg"></i> Option B: Upload Image File
                                 </label>
                                 <input type="file" name="profile_pic" class="form-control-file form-control-modern" accept="image/*">
                                 <small class="text-muted d-block mt-2">
-                                    Upload a clear portrait photo (.jpg, .jpeg, .png).
+                                    Upload a clear passport portrait photo (.jpg, .jpeg, .png).
                                 </small>
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-4 pt-2 text-right">
-                        <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm" style="cursor: pointer; z-index: 10;">
-                            <i class="fas fa-check mr-2"></i> Register Student & Save
+                        <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm">
+                            <i class="fas fa-check mr-2"></i> Register Student & Save Biometrics
                         </button>
                     </div>
                 </form>
@@ -161,13 +177,15 @@
 
                             <div class="mb-4">
                                 <label class="font-weight-bold text-dark">
-                                    Upload Excel (.xlsx, .xls) or CSV File <span class="text-danger">*</span>
+                                    <i class="fas fa-file-excel text-success mr-1"></i> Upload Excel (.xlsx, .xls) or CSV Roster <span class="text-danger">*</span>
                                 </label>
                                 <div class="upload-dropzone" onclick="document.getElementById('excel_file').click();">
                                     <input type="file" name="excel_file" id="excel_file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="previewExcelName(this)">
                                     <div id="excelDropContent">
-                                        <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
-                                        <h6 class="font-weight-bold text-dark mb-1">Click to browse or drop student Excel sheet here</h6>
+                                        <div class="stat-icon mx-auto mb-3" style="background: #d1fae5; color: #059669; width: 64px; height: 64px; font-size: 1.8rem;">
+                                            <i class="fas fa-file-excel"></i>
+                                        </div>
+                                        <h6 class="font-weight-bold text-dark mb-1">Click to browse or drop class roster Excel file here</h6>
                                         <p class="text-muted small mb-0">Accepts .xlsx, .xls, and .csv formats</p>
                                     </div>
                                     <div id="excelFilePreview" class="mt-2 text-success font-weight-bold" style="display: none;"></div>
@@ -176,28 +194,28 @@
 
                             <div class="mb-4">
                                 <label class="font-weight-bold text-dark small">
-                                    Or Enter Public Google Sheet URL
+                                    <i class="fab fa-google text-primary mr-1"></i> Or Enter Public Google Sheet URL
                                 </label>
                                 <input type="url" name="sheet_url" class="form-control form-control-modern" placeholder="https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit">
-                                <small class="text-muted">If using a Google Sheet, ensure sharing is set to "Anyone with the link can view".</small>
+                                <small class="text-muted">If using Google Sheets, verify sharing is set to "Anyone with the link can view".</small>
                             </div>
 
                             <div class="mb-4">
                                 <label class="font-weight-bold text-dark small">
-                                    Optional: Shared Google Drive Folder Link (if photos are stored in a folder)
+                                    <i class="fab fa-google-drive text-primary mr-1"></i> Optional: Shared Google Drive Folder Link (if photos are in a folder)
                                 </label>
                                 <input type="url" name="drive_folder_url" class="form-control form-control-modern" placeholder="https://drive.google.com/drive/folders/YOUR_FOLDER_ID?usp=sharing">
                             </div>
 
-                            <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm" style="cursor: pointer; z-index: 10;">
-                                <i class="fas fa-cloud-arrow-up mr-2"></i> Import Students & Fetch Drive Photos
+                            <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm">
+                                <i class="fas fa-cloud-arrow-up mr-2"></i> Import Roster & Download Drive Photos
                             </button>
                         </form>
                     </div>
 
                     <!-- Right Column: Instructions & Template Download -->
                     <div class="col-lg-4 mt-4 mt-lg-0">
-                        <div class="card border-0 bg-light p-3 rounded" style="border-radius: 12px;">
+                        <div class="card border-0 bg-light p-3" style="border-radius: 14px;">
                             <h6 class="font-weight-bold text-dark mb-3">
                                 <i class="fas fa-circle-info text-primary mr-2"></i> Excel Column Format Guide
                             </h6>
@@ -213,7 +231,7 @@
                                 <li><code>Section</code> (e.g. A, B, C)</li>
                                 <li><code>Email</code></li>
                                 <li><code>Phone</code></li>
-                                <li><code>Google Drive Photo Link</code> (Drive image link for each student)</li>
+                                <li><code>Google Drive Photo Link</code> (Per-student Drive image link)</li>
                             </ul>
 
                             <a href="{% url 'download_excel_template' %}" class="btn btn-outline-success btn-block font-weight-bold mt-2" style="border-radius: 8px;">
@@ -225,7 +243,7 @@
 
                 <!-- Bulk Import Logs & Stats (if submitted) -->
                 {% if bulk_stats %}
-                <div class="card border border-success p-3 rounded mt-4 bg-light">
+                <div class="card border border-success p-3 mt-4 bg-light" style="border-radius: 14px;">
                     <h6 class="font-weight-bold text-success mb-2">
                         <i class="fas fa-check-circle mr-1"></i> Import Results Summary:
                     </h6>
@@ -236,7 +254,7 @@
                         <div class="col-md-3 col-6 text-info"><strong>{{ bulk_stats.photos_processed }}</strong> Photos Processed</div>
                     </div>
                     {% if bulk_stats.logs %}
-                    <div class="bg-dark text-light p-3 rounded small" style="max-height: 220px; overflow-y: auto; font-family: monospace;">
+                    <div class="bg-dark text-light p-3 rounded small" style="max-height: 220px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
                         {% for log in bulk_stats.logs %}
                             <div>{{ log }}</div>
                         {% endfor %}
@@ -257,7 +275,7 @@ function previewExcelName(input) {
     if (input.files && input.files[0]) {
         var name = input.files[0].name;
         document.getElementById('excelFilePreview').style.display = 'block';
-        document.getElementById('excelFilePreview').innerHTML = '<i class="fas fa-check-circle mr-1"></i> Selected: ' + name;
+        document.getElementById('excelFilePreview').innerHTML = '<i class="fas fa-check-circle mr-1"></i> Selected: <strong>' + name + '</strong>';
         document.getElementById('excelDropContent').style.display = 'none';
     }
 }
