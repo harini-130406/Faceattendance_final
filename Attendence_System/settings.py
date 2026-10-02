@@ -224,22 +224,20 @@ raw_pwd = os.environ.get('EMAIL_HOST_PASSWORD', '')
 email_host_password = raw_pwd.replace(' ', '').strip() if raw_pwd else 'rpwuxrwphizixghb'
 email_host_user = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com').strip() or 'proconnect795@gmail.com'
 
-# Use SmartFailoverEmailBackend for automatic 587/465 failover
+# Use SmartFailoverEmailBackend for automatic 465 SSL and 587 STARTTLS failover
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'attendence_sys.email_backend.SmartFailoverEmailBackend')
 if EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
     EMAIL_BACKEND = 'attendence_sys.email_backend.SmartFailoverEmailBackend'
 
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 't') or EMAIL_PORT == 465
-if EMAIL_USE_SSL:
-    EMAIL_USE_TLS = False
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 465))
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True').lower() in ('true', '1', 't') or EMAIL_PORT == 465
+EMAIL_USE_TLS = False if EMAIL_USE_SSL else os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
 EMAIL_HOST_USER = email_host_user
 EMAIL_HOST_PASSWORD = email_host_password
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', email_host_user) or email_host_user
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f"Smart Attendance System <{email_host_user}>") or f"Smart Attendance System <{email_host_user}>"
 SERVER_EMAIL = os.environ.get('SERVER_EMAIL', email_host_user) or email_host_user
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 5))  # 5-second socket timeout
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 15))  # 15-second socket timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
 

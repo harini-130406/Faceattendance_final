@@ -98,3 +98,37 @@ class SmartPasswordResetForm(PasswordResetForm):
             else:
                 logger.warning(f"[SmartPasswordResetForm] User {u.username} skipped: no registered email address found")
 
+    def send_mail(
+        self,
+        subject_template_name,
+        email_template_name,
+        context,
+        from_email,
+        to_email,
+        html_email_template_name=None,
+    ):
+        """
+        Send a django.core.mail.EmailMultiAlternatives to `to_email`.
+        Enforces fail_silently=False so delivery failures are never swallowed.
+        """
+        from django.template import loader
+        from django.core.mail import EmailMultiAlternatives
+        from django.conf import settings
+
+        subject = loader.render_to_string(subject_template_name, context)
+        # Email subject *must not* contain newlines
+        subject = "".join(subject.splitlines())
+        body = loader.render_to_string(email_template_name, context)
+
+        sender = from_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'proconnect795@gmail.com')
+
+        email_message = EmailMultiAlternatives(subject, body, sender, [to_email])
+        if html_email_template_name is not None:
+            html_email = loader.render_to_string(html_email_template_name, context)
+            email_message.attach_alternative(html_email, "text/html")
+
+        logger.info(f"[SmartPasswordResetForm] Sending password reset email from {sender} to {to_email}...")
+        email_message.send(fail_silently=False)
+        logger.info(f"[SmartPasswordResetForm] Successfully dispatched password reset email to {to_email}")
+
+

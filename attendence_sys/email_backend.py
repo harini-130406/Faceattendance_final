@@ -1,5 +1,6 @@
 import smtplib
 import ssl
+import socket
 import logging
 from django.core.mail.backends.smtp import EmailBackend
 from django.conf import settings
@@ -9,8 +10,10 @@ logger = logging.getLogger(__name__)
 
 class SmartFailoverEmailBackend(EmailBackend):
     """
-    Robust SMTP email backend with automatic multi-port failover (587 TLS -> 465 SSL).
-    Handles cloud provider port blocking, transient network timeouts, and app password whitespace.
+    Robust SMTP email backend with automatic multi-strategy connection:
+    1. Direct SSL on Port 465 (Fastest & most reliable on cloud containers)
+    2. Explicit IPv4 socket on Port 465 with SNI (bypasses unroutable IPv6 on cloud hosts)
+    3. STARTTLS on Port 587
     """
     def __init__(self, host=None, port=None, username=None, password=None,
                  use_tls=None, fail_silently=False, use_ssl=None, timeout=None,
@@ -24,13 +27,13 @@ class SmartFailoverEmailBackend(EmailBackend):
 
         super().__init__(
             host=host or getattr(settings, 'EMAIL_HOST', 'smtp.gmail.com'),
-            port=port or getattr(settings, 'EMAIL_PORT', 587),
+            port=port or getattr(settings, 'EMAIL_PORT', 465),
             username=sanitized_user,
             password=sanitized_password,
-            use_tls=use_tls if use_tls is not None else getattr(settings, 'EMAIL_USE_TLS', True),
+            use_tls=use_tls if use_tls is not None else getattr(settings, 'EMAIL_USE_TLS', False),
             fail_silently=fail_silently,
-            use_ssl=use_ssl if use_ssl is not None else getattr(settings, 'EMAIL_USE_SSL', False),
-            timeout=timeout or getattr(settings, 'EMAIL_TIMEOUT', 5),
+            use_ssl=use_ssl if use_ssl is not None else getattr(settings, 'EMAIL_USE_SSL', True),
+            timeout=timeout or getattr(settings, 'EMAIL_TIMEOUT', 15),
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             **kwargs
@@ -40,47 +43,67 @@ class SmartFailoverEmailBackend(EmailBackend):
         if self.connection:
             return False
 
-        # Attempt 1: Standard connection (typically Port 587 STARTTLS)
-        try:
-            logger.info(f"[SmartFailoverEmail] Connecting to {self.host}:{self.port} (TLS={self.use_tls}, SSL={self.use_ssl})...")
-            if self.use_ssl:
-                self.connection = smtplib.SMTP_SSL(self.host, self.port, timeout=self.timeout)
-            else:
-                self.connection = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
-                if self.use_tls:
-                    self.connection.ehlo()
-                    self.connection.starttls()
-                    self.connection.ehlo()
+        last_error = None
 
-            if self.username and self.password:
-                self.connection.login(self.username, self.password)
-            logger.info(f"[SmartFailoverEmail] Connected and authenticated on primary port {self.port}!")
-            return True
-        except Exception as e1:
-            logger.warning(f"[SmartFailoverEmail] Primary port {self.port} failed ({e1}). Attempting Port 465 SSL failover...")
-
-        # Attempt 2: Direct SSL on Port 465
+        # Strategy 1: Standard SMTP_SSL on Port 465
         try:
+            logger.info(f"[SmartFailoverEmail] Connecting to {self.host}:465 (SSL)...")
             self.connection = smtplib.SMTP_SSL(self.host, 465, timeout=self.timeout)
             if self.username and self.password:
                 self.connection.login(self.username, self.password)
-            logger.info("[SmartFailoverEmail] Successfully connected and authenticated on failover Port 465 SSL!")
+            logger.info("[SmartFailoverEmail] Connected & authenticated via Port 465 SSL!")
+            return True
+        except Exception as e1:
+            logger.warning(f"[SmartFailoverEmail] Port 465 SSL failed: {e1}")
+            last_error = e1
+            self._close_conn()
+
+        # Strategy 2: Explicit IPv4 socket connection with SSL SNI on Port 465
+        # (Resolves issues where cloud environments lack IPv6 routing for smtp.gmail.com)
+        try:
+            logger.info(f"[SmartFailoverEmail] Resolving IPv4 for {self.host}:465...")
+            ipv4_addr = socket.gethostbyname(self.host)
+            ctx = ssl.create_default_context()
+            raw_sock = socket.create_connection((ipv4_addr, 465), timeout=self.timeout)
+            ssl_sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
+            self.connection = smtplib.SMTP_SSL()
+            self.connection.sock = ssl_sock
+            self.connection.file = ssl_sock.makefile('rb')
+            self.connection.getreply()
+            if self.username and self.password:
+                self.connection.login(self.username, self.password)
+            logger.info("[SmartFailoverEmail] Connected & authenticated via IPv4 SNI Port 465 SSL!")
             return True
         except Exception as e2:
-            logger.warning(f"[SmartFailoverEmail] Failover Port 465 failed ({e2}). Attempting Port 587 TLS failover...")
+            logger.warning(f"[SmartFailoverEmail] IPv4 SNI Port 465 failed: {e2}")
+            last_error = e2
+            self._close_conn()
 
-        # Attempt 3: STARTTLS on Port 587
+        # Strategy 3: STARTTLS on Port 587
         try:
+            logger.info(f"[SmartFailoverEmail] Connecting to {self.host}:587 (STARTTLS)...")
             self.connection = smtplib.SMTP(self.host, 587, timeout=self.timeout)
             self.connection.ehlo()
             self.connection.starttls()
             self.connection.ehlo()
             if self.username and self.password:
                 self.connection.login(self.username, self.password)
-            logger.info("[SmartFailoverEmail] Successfully connected and authenticated on failover Port 587 TLS!")
+            logger.info("[SmartFailoverEmail] Connected & authenticated via Port 587 STARTTLS!")
             return True
         except Exception as e3:
-            logger.error(f"[SmartFailoverEmail] All SMTP attempts failed. Port {self.port}: {e1}, Port 465: {e2}, Port 587: {e3}")
-            if not self.fail_silently:
-                raise e3
-            return False
+            logger.warning(f"[SmartFailoverEmail] Port 587 STARTTLS failed: {e3}")
+            last_error = e3
+            self._close_conn()
+
+        logger.error(f"[SmartFailoverEmail] All email connection strategies exhausted. Last error: {last_error}")
+        if not self.fail_silently:
+            raise last_error
+        return False
+
+    def _close_conn(self):
+        if self.connection:
+            try:
+                self.connection.close()
+            except Exception:
+                pass
+            self.connection = None

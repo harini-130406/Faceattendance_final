@@ -1481,7 +1481,7 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
     """
     Standard Django PasswordResetView utilizing SmartPasswordResetForm.
     Dispatches cryptographic single-use reset links from proconnect795@gmail.com
-    strictly to the user's original verified registered email.
+    strictly to the user's verified registered email inbox.
     """
     template_name = 'attendence_sys/password_reset.html'
     email_template_name = 'attendence_sys/password_reset_email.txt'
@@ -1491,56 +1491,47 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
     success_url = reverse_lazy('password_reset_done')
 
     def form_valid(self, form):
-        from django.utils.http import urlsafe_base64_encode
-        from django.utils.encoding import force_bytes
-        from django.contrib.auth.tokens import default_token_generator
+        # Clear any legacy direct reset session keys
+        self.request.session.pop('direct_reset_url', None)
+        self.request.session.pop('direct_reset_user', None)
 
-        # Log clickable recovery link in server console and store in session for instant access
+        target_input = form.cleaned_data.get('email', '').strip()
         try:
-            for user in form.get_users(form.cleaned_data.get('email')):
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
-                token = default_token_generator.make_token(user)
-                reset_url = self.request.build_absolute_uri(
-                    reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
-                )
-                self.request.session['direct_reset_url'] = reset_url
-                self.request.session['direct_reset_user'] = user.username
-                logger.warning("============================================================")
-                logger.warning(f"[SECURE RESET LINK FOR {user.username}]: {reset_url}")
-                logger.warning("============================================================")
-                break
-        except Exception as log_err:
-            logger.debug(f"[PasswordReset] Console log generation note: {log_err}")
-
-        try:
-            logger.info(f"[PasswordReset] Dispatched request for: {form.cleaned_data.get('email')}")
-            res = super().form_valid(form)
+            logger.info(f"[PasswordReset] Initiating password reset email dispatch for: {target_input}")
+            # Ensure https protocol is passed when in production / SSL proxy
+            use_https = True if not getattr(settings, 'DEBUG', False) else self.request.is_secure()
+            opts = {
+                'use_https': use_https,
+                'token_generator': self.token_generator,
+                'from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', 'proconnect795@gmail.com'),
+                'email_template_name': self.email_template_name,
+                'subject_template_name': self.subject_template_name,
+                'request': self.request,
+                'html_email_template_name': self.html_email_template_name,
+                'extra_email_context': self.extra_email_context,
+            }
+            form.save(**opts)
+            logger.info(f"[PasswordReset] Password reset email successfully delivered to SMTP server for {target_input}")
             messages.success(
                 self.request,
-                "Password reset email has been dispatched from proconnect795@gmail.com! Please check your inbox and spam folder."
-            )
-            return res
-        except Exception as e:
-            logger.error(f"[PasswordReset] Email dispatch error: {e}")
-            messages.info(
-                self.request,
-                "Password reset request processed. If your mail provider delays delivery, you can use the instant reset button below."
+                f"Password reset email has been dispatched to {target_input}. Please check your inbox and spam folder."
             )
             return redirect(self.get_success_url())
-
+        except Exception as e:
+            logger.error(f"[PasswordReset] Email delivery failure for {target_input}: {e}", exc_info=True)
+            messages.error(
+                self.request,
+                f"Unable to send reset email ({e}). Please verify the email address or check your connection."
+            )
+            return self.form_invalid(form)
 
 
 class SmartPasswordResetDoneView(auth_views.PasswordResetDoneView):
     """
-    Confirmation view with instant reset access fallback.
+    Standard confirmation view instructing user to verify link in their email inbox.
+    No on-screen bypass links are rendered.
     """
     template_name = 'attendence_sys/password_reset_done.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['direct_reset_url'] = self.request.session.get('direct_reset_url')
-        context['direct_reset_user'] = self.request.session.get('direct_reset_user')
-        return context
 
 
 class SmartPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
