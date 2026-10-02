@@ -218,26 +218,22 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
-# Email Configuration (Password Reset & Security Alerts)
-# Outgoing mail delivered from: proconnect795@gmail.com
+# Standard Gmail SMTP Email Configuration (Password Reset & Security Alerts)
+# Outgoing mail delivered strictly from: proconnect795@gmail.com
 raw_pwd = os.environ.get('EMAIL_HOST_PASSWORD', '')
 email_host_password = raw_pwd.replace(' ', '').strip() if raw_pwd else 'rpwuxrwphizixghb'
 email_host_user = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com').strip() or 'proconnect795@gmail.com'
 
-# Use SmartFailoverEmailBackend for automatic 465 SSL and 587 STARTTLS failover
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'attendence_sys.email_backend.SmartFailoverEmailBackend')
-if EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
-    EMAIL_BACKEND = 'attendence_sys.email_backend.SmartFailoverEmailBackend'
-
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 465))
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True').lower() in ('true', '1', 't') or EMAIL_PORT == 465
-EMAIL_USE_TLS = False if EMAIL_USE_SSL else os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 EMAIL_HOST_USER = email_host_user
 EMAIL_HOST_PASSWORD = email_host_password
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f"Smart Attendance System <{email_host_user}>") or f"Smart Attendance System <{email_host_user}>"
-SERVER_EMAIL = os.environ.get('SERVER_EMAIL', email_host_user) or email_host_user
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 15))  # 15-second socket timeout
+DEFAULT_FROM_EMAIL = email_host_user
+SERVER_EMAIL = email_host_user
+EMAIL_TIMEOUT = 15
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
 
