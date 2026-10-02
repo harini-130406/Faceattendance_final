@@ -139,6 +139,15 @@ class SmartFailoverEmailBackend(EmailBackend):
             or "Smart FaceAttendance"
         ).strip()
 
+        # Handle compound format in default sender e.g. "Smart FaceAttendance<proconnect795@gmail.com>"
+        if '<' in default_sender and '>' in default_sender:
+            name_p = default_sender.split('<')[0].strip()
+            email_p = default_sender.split('<')[1].replace('>', '').strip()
+            if name_p:
+                default_name = name_p
+            if email_p:
+                default_sender = email_p
+
         for msg in email_messages:
             try:
                 html_body = None
@@ -163,8 +172,22 @@ class SmartFailoverEmailBackend(EmailBackend):
                     sender_email = from_addr
 
                 # Override with explicit Brevo sender email if configured in environment
-                if os.environ.get('BREVO_SENDER_EMAIL'):
-                    sender_email = os.environ.get('BREVO_SENDER_EMAIL').strip()
+                explicit_brevo_sender = os.environ.get('BREVO_SENDER_EMAIL', '').strip()
+                if explicit_brevo_sender:
+                    if '<' in explicit_brevo_sender and '>' in explicit_brevo_sender:
+                        exp_name = explicit_brevo_sender.split('<')[0].strip()
+                        exp_email = explicit_brevo_sender.split('<')[1].replace('>', '').strip()
+                        if exp_name:
+                            sender_name = exp_name
+                        if exp_email:
+                            sender_email = exp_email
+                    else:
+                        sender_email = explicit_brevo_sender
+
+                # Sanitize sender email so it is always a pure email address for Brevo
+                if '<' in sender_email and '>' in sender_email:
+                    sender_email = sender_email.split('<')[1].replace('>', '').strip()
+                sender_email = sender_email.strip()
 
                 payload = {
                     "sender": {
