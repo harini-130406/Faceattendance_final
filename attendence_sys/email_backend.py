@@ -26,7 +26,7 @@ class SmartFailoverEmailBackend(EmailBackend):
                  ssl_keyfile=None, ssl_certfile=None, **kwargs):
         
         # Sanitize password and username (strip all inner and outer whitespace from app passwords)
-        default_pwd = getattr(settings, 'EMAIL_HOST_PASSWORD', 'rpwuxrwphizixghb') or 'rpwuxrwphizixghb'
+        default_pwd = getattr(settings, 'EMAIL_HOST_PASSWORD', '') or ''
         sanitized_password = (password or default_pwd).replace(' ', '').strip()
         default_usr = getattr(settings, 'EMAIL_HOST_USER', 'proconnect795@gmail.com') or 'proconnect795@gmail.com'
         sanitized_user = (username or default_usr).strip()

@@ -218,22 +218,22 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
-# Resilient Email Configuration (Supports Brevo/Resend HTTPS over Port 443 + Gmail SMTP)
+# Email Configuration (Password Reset & Security Alerts)
 # Outgoing mail delivered strictly from: proconnect795@gmail.com
-raw_pwd = os.environ.get('EMAIL_HOST_PASSWORD', '')
-email_host_password = raw_pwd.replace(' ', '').strip() if raw_pwd else 'rpwuxrwphizixghb'
-email_host_user = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com').strip() or 'proconnect795@gmail.com'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 't')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com').strip()
 
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'attendence_sys.email_backend.SmartFailoverEmailBackend')
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
-EMAIL_HOST_USER = email_host_user
-EMAIL_HOST_PASSWORD = email_host_password
-DEFAULT_FROM_EMAIL = email_host_user
-SERVER_EMAIL = email_host_user
-EMAIL_TIMEOUT = 15
+# App Password must be read from environment variable only (never hard-coded)
+raw_email_password = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_HOST_PASSWORD = raw_email_password.replace(' ', '').strip() if raw_email_password else ''
+
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER) or EMAIL_HOST_USER
+SERVER_EMAIL = os.environ.get('SERVER_EMAIL', EMAIL_HOST_USER) or EMAIL_HOST_USER
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 15))  # 15-second socket timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
 
