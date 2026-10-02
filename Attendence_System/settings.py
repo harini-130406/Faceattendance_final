@@ -216,15 +216,21 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
 # Email Configuration (Password Reset & Security Alerts)
 # Outgoing mail delivered from: proconnect795@gmail.com
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+email_host_password = os.environ.get('EMAIL_HOST_PASSWORD', '').replace(' ', '').strip()
+if not email_host_password:
+    # If no SMTP app password is provided, print reset links to console/logs safely without hanging
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+else:
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com')
-# Automatically remove spaces from the Google App password if pasted as 4 blocks of 4 letters
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').replace(' ', '').strip()
+EMAIL_HOST_PASSWORD = email_host_password
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 SERVER_EMAIL = os.environ.get('SERVER_EMAIL', EMAIL_HOST_USER)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 5))  # 5-second socket timeout to prevent worker hang
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
 # Django REST Framework Configuration

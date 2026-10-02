@@ -1434,14 +1434,13 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
         try:
             return super().form_valid(form)
         except Exception as e:
-            logger.warning(f"[PasswordReset] SMTP dispatch failed: {e}")
-            if settings.DEBUG:
-                messages.warning(
-                    self.request,
-                    f"Notice: SMTP dispatch from {getattr(settings, 'DEFAULT_FROM_EMAIL', 'proconnect795@gmail.com')} encountered: {e}. Check your .env configuration."
-                )
-                return redirect(self.get_success_url())
-            raise
+            logger.warning(f"[PasswordReset] Email dispatch encountered an issue: {e}")
+            messages.warning(
+                self.request,
+                f"Password reset request received. (Notice: Email service notification: {e})"
+            )
+            return redirect(self.get_success_url())
+
 
 
 class SmartPasswordResetDoneView(auth_views.PasswordResetDoneView):
