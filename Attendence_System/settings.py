@@ -15,14 +15,12 @@ import os
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Load environment variables from .env file if present
+# Load environment variables from .env file if present (local development)
 try:
     from dotenv import load_dotenv
     env_file = os.path.join(BASE_DIR, '.env')
     if os.path.exists(env_file):
         load_dotenv(env_file, override=True)
-    elif os.path.exists(os.path.join(BASE_DIR, '.env.example')):
-        load_dotenv(os.path.join(BASE_DIR, '.env.example'), override=True)
 except Exception:
     pass
 
