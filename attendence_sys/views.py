@@ -27,7 +27,10 @@ from .filters import AttendenceFilter
 from .google_drive_helper import fetch_drive_image_bytes, attach_drive_photo_to_student
 from .google_sheets_service import sync_google_sheet, generate_excel_template
 from .detector import process_classroom_image, process_multiple_classroom_images, get_student_face_encoding
-import face_recognition
+try:
+    import face_recognition
+except ImportError:
+    face_recognition = None
 import cv2
 import numpy as np
 
@@ -596,6 +599,7 @@ def addStudentPage(request):
             default_year = request.POST.get('default_year', '3').strip()
             default_branch = request.POST.get('default_branch', 'CSE').strip()
             default_section = request.POST.get('default_section', 'A').strip().upper()
+            new_only = request.POST.get('new_only') in ('1', 'true', 'on', 'yes')
 
             try:
                 stats = sync_google_sheet(
@@ -606,12 +610,24 @@ def addStudentPage(request):
                     enrolled_by_name=faculty_name,
                     default_year=default_year,
                     default_branch=default_branch,
-                    default_section=default_section
+                    default_section=default_section,
+                    new_only=new_only
                 )
                 context['bulk_stats'] = stats
+                parts = [
+                    f"Rows: {stats['total_rows']}",
+                    f"Created: {stats['created']}",
+                    f"Updated: {stats['updated']}"
+                ]
+                if stats.get('skipped'):
+                    parts.append(f"Skipped (already exists): {stats['skipped']}")
+                parts.append(f"Photos: {stats['photos_processed']}")
+                if stats.get('errors'):
+                    parts.append(f"Errors: {stats['errors']}")
+
                 messages.success(
                     request,
-                    f"Centralized bulk import completed! Rows: {stats['total_rows']}, Created: {stats['created']}, Updated: {stats['updated']}, Photos processed: {stats['photos_processed']}. All students are now available to all faculty accounts."
+                    f"Bulk roster import complete! {', '.join(parts)}. All students are accessible to all faculty."
                 )
             except Exception as e:
                 messages.error(request, f"Bulk import failed: {e}")
@@ -1432,12 +1448,18 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
 
     def form_valid(self, form):
         try:
-            return super().form_valid(form)
-        except Exception as e:
-            logger.warning(f"[PasswordReset] Email dispatch encountered an issue: {e}")
-            messages.warning(
+            logger.info(f"[PasswordReset] Dispatched request for: {form.cleaned_data.get('email')}")
+            res = super().form_valid(form)
+            messages.success(
                 self.request,
-                f"Password reset request received. (Notice: Email service notification: {e})"
+                "Password reset email has been dispatched from proconnect795@gmail.com! Please check your inbox and spam folder."
+            )
+            return res
+        except Exception as e:
+            logger.error(f"[PasswordReset] Email dispatch error: {e}", exc_info=True)
+            messages.error(
+                self.request,
+                f"Email notification issue: {e}. Please contact system support."
             )
             return redirect(self.get_success_url())
 

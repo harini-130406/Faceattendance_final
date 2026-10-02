@@ -262,6 +262,16 @@
                                 <input type="url" name="drive_folder_url" class="form-control form-control-modern" placeholder="https://drive.google.com/drive/folders/YOUR_FOLDER_ID?usp=sharing">
                             </div>
 
+                            <div class="custom-control custom-checkbox mb-4 p-3 bg-white rounded border shadow-sm">
+                                <input type="checkbox" class="custom-control-input" id="new_only" name="new_only" value="1">
+                                <label class="custom-control-label font-weight-bold text-dark" for="new_only" style="cursor: pointer;">
+                                    <i class="fas fa-filter text-primary mr-1"></i> Add New Only (Skip existing students)
+                                </label>
+                                <small class="text-muted d-block mt-1 pl-4">
+                                    If checked, students already registered with the same Register Number will NOT be updated or altered. Only newly discovered students will be imported.
+                                </small>
+                            </div>
+
                             <button type="submit" class="btn btn-modern-success px-4 py-2 font-weight-bold shadow-sm">
                                 <i class="fas fa-cloud-arrow-up mr-2"></i> Import Roster & Download Drive Photos
                             </button>
@@ -303,10 +313,12 @@
                         <i class="fas fa-check-circle mr-1"></i> Import Results Summary:
                     </h6>
                     <div class="row text-center mb-3">
-                        <div class="col-md-3 col-6"><strong>{{ bulk_stats.total_rows }}</strong> Rows Read</div>
-                        <div class="col-md-3 col-6 text-success"><strong>{{ bulk_stats.created }}</strong> Created</div>
-                        <div class="col-md-3 col-6 text-primary"><strong>{{ bulk_stats.updated }}</strong> Updated</div>
-                        <div class="col-md-3 col-6 text-info"><strong>{{ bulk_stats.photos_processed }}</strong> Photos Processed</div>
+                        <div class="col-md-2 col-4 mb-2"><strong>{{ bulk_stats.total_rows }}</strong> Rows Read</div>
+                        <div class="col-md-2 col-4 mb-2 text-success"><strong>{{ bulk_stats.created }}</strong> Created</div>
+                        <div class="col-md-2 col-4 mb-2 text-primary"><strong>{{ bulk_stats.updated }}</strong> Updated</div>
+                        <div class="col-md-2 col-4 mb-2 text-warning"><strong>{{ bulk_stats.skipped|default:0 }}</strong> Skipped</div>
+                        <div class="col-md-2 col-4 mb-2 text-info"><strong>{{ bulk_stats.photos_processed }}</strong> Photos</div>
+                        <div class="col-md-2 col-4 mb-2 text-danger"><strong>{{ bulk_stats.errors|default:0 }}</strong> Errors</div>
                     </div>
                     {% if bulk_stats.logs %}
                     <div class="bg-dark text-light p-3 rounded small" style="max-height: 220px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">

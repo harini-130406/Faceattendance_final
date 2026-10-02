@@ -8,16 +8,25 @@ from .models import Student, StudentPhoto
 from .google_drive_helper import extract_google_drive_file_id, fetch_drive_image_bytes, attach_drive_photo_to_student
 
 DEFAULT_HEADER_PATTERNS = {
-    'register_number': [r'reg.*num', r'reg.*id', r'registration', r'roll.*num', r'roll.*no', r'register', r'id$'],
-    'name': [r'student.*name', r'full.*name', r'^name$'],
-    'first_name': [r'first.*name', r'fname'],
-    'last_name': [r'last.*name', r'lname', r'surname'],
-    'department': [r'dept', r'department', r'branch', r'stream'],
-    'year': [r'year', r'yr', r'class', r'batch'],
+    'register_number': [
+        r'reg.*num', r'reg.*no', r'reg.*id', r'registration', r'register',
+        r'roll.*num', r'roll.*no', r'roll', r'enroll.*no', r'enrollment',
+        r'adm.*no', r'admission', r'student.*id', r'student.*reg',
+        r'^reg\b', r'^roll\b', r'^id$'
+    ],
+    'name': [r'student.*name', r'full.*name', r'^name$', r'candidate.*name', r'student'],
+    'first_name': [r'first.*name', r'fname', r'given.*name'],
+    'last_name': [r'last.*name', r'lname', r'surname', r'family.*name'],
+    'department': [r'dept', r'department', r'branch', r'stream', r'course', r'programme'],
+    'year': [r'year', r'yr', r'class', r'batch', r'semester', r'sem'],
     'section': [r'section', r'sec'],
-    'email': [r'email', r'mail'],
-    'phone': [r'phone', r'mobile', r'contact'],
-    'photo_1': [r'photo.*1', r'image.*1', r'profile.*photo', r'upload.*photo$', r'drive.*link', r'drive.*photo', r'image.*url', r'^photo$', r'^image$'],
+    'email': [r'email', r'mail', r'e-mail'],
+    'phone': [r'phone', r'mobile', r'contact', r'ph.*no', r'cell'],
+    'photo_1': [
+        r'photo.*1', r'image.*1', r'profile.*photo', r'upload.*photo',
+        r'drive.*link', r'drive.*photo', r'image.*url', r'photo.*link',
+        r'photo.*url', r'image', r'photo', r'picture', r'avatar'
+    ],
     'photo_2': [r'photo.*2', r'image.*2'],
     'photo_3': [r'photo.*3', r'image.*3'],
 }
@@ -69,10 +78,10 @@ def extract_spreadsheet_id(sheet_url_or_id):
 
 def detect_column_mapping(headers):
     mapping = {}
-    normalized_headers = [str(h).strip().lower() for h in headers]
+    cleaned_headers = [re.sub(r'[\s_.-]+', ' ', str(h).strip().lower()) for h in headers]
 
     for field, patterns in DEFAULT_HEADER_PATTERNS.items():
-        for idx, h in enumerate(normalized_headers):
+        for idx, h in enumerate(cleaned_headers):
             if any(re.search(pat, h) for pat in patterns):
                 mapping[field] = idx
                 break
@@ -124,7 +133,7 @@ def fetch_sheet_csv(sheet_url_or_id):
     raise RuntimeError("Failed to fetch Google Sheet data. If this is a local Excel/CSV file, pass the file path directly. If it is a Google Sheet URL, ensure the sharing permission is set to 'Anyone with the link can view'.")
 
 
-def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, drive_folder_url=None, enrolled_by=None, enrolled_by_name=None, default_year=None, default_branch=None, default_section=None):
+def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, drive_folder_url=None, enrolled_by=None, enrolled_by_name=None, default_year=None, default_branch=None, default_section=None, new_only=False):
     """
     Synchronizes Django database with Student Registration data.
     sheet_source can be:
@@ -133,11 +142,14 @@ def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, d
       - Local .xlsx / .xls Excel file path
       - Local .csv file path
       - Raw CSV text string
+
+    new_only: If True, existing students matching register_number are untouched and skipped.
     """
     stats = {
         'total_rows': 0,
         'created': 0,
         'updated': 0,
+        'skipped': 0,
         'photos_processed': 0,
         'errors': 0,
         'logs': []
@@ -204,7 +216,7 @@ def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, d
 
     reg_idx = col_map.get('register_number')
     if reg_idx is None:
-        raise ValueError(f"Could not identify 'Registration ID / Register Number' column from headers: {headers}")
+        raise ValueError(f"Could not identify 'Registration ID / Register Number' column from headers: {headers}. Supported headers include: Registration ID, Register Number, Reg No, Roll No, Student ID.")
 
     name_idx = col_map.get('name')
     fname_idx = col_map.get('first_name')
@@ -232,89 +244,106 @@ def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, d
         if not any(row):
             continue
 
-        reg_num = get_val(row, reg_idx)
-        if not reg_num:
-            stats['errors'] += 1
-            stats['logs'].append(f"Row {i}: Skipped due to missing Register Number.")
-            continue
-
-        name = get_val(row, name_idx)
-        fname = get_val(row, fname_idx)
-        lname = get_val(row, lname_idx)
-
-        raw_dept = get_val(row, dept_idx)
-        department = (raw_dept or default_branch or 'CSE').upper()
-        raw_year = get_val(row, year_idx)
-        year = normalize_academic_year(raw_year, fallback=default_year or '3')
-        raw_sec = get_val(row, sec_idx)
-        section = (raw_sec or default_section or 'A').upper()
-        email = get_val(row, email_idx)
-        phone = get_val(row, phone_idx)
-
-        student, created = Student.objects.get_or_create(register_number=reg_num)
-        if created:
-            stats['created'] += 1
-            stats['logs'].append(f"[OK] Student {reg_num} created")
-            if enrolled_by:
-                student.enrolled_by = enrolled_by
-            student.enrolled_by_name = enrolled_by_name or 'Institutional Registry'
-        else:
-            stats['updated'] += 1
-            stats['logs'].append(f"[OK] Student {reg_num} updated")
-            if not student.enrolled_by and enrolled_by:
-                student.enrolled_by = enrolled_by
-                student.enrolled_by_name = enrolled_by_name or student.enrolled_by_name
-
-        student.registration_id = reg_num
-        if name:
-            student.name = name
-        if fname:
-            student.firstname = fname
-        if lname:
-            student.lastname = lname
-        if not student.name and (student.firstname or student.lastname):
-            student.name = f"{student.firstname or ''} {student.lastname or ''}".strip()
-
-        if department:
-            student.department = department
-            student.branch = department
-        if year:
-            student.year = year
-        if section:
-            student.section = section
-        if email:
-            student.email = email
-        if phone:
-            student.phone = phone
-        student.save()
-
-        # Process Photos
-        photo_urls = [
-            (get_val(row, photo1_idx), True, 1),
-            (get_val(row, photo2_idx), False, 2),
-            (get_val(row, photo3_idx), False, 3),
-        ]
-
-        for p_url, is_primary, order in photo_urls:
-            if not p_url:
-                continue
-            drive_id = extract_google_drive_file_id(p_url)
-            if not drive_id:
+        try:
+            reg_num = get_val(row, reg_idx)
+            if not reg_num:
+                stats['errors'] += 1
+                stats['logs'].append(f"Row {i}: Skipped due to missing Register Number.")
                 continue
 
-            stats['photos_processed'] += 1
-            if download_photos:
-                success, msg = attach_drive_photo_to_student(student, p_url, is_primary=is_primary)
-                if success:
-                    stats['logs'].append(f"[OK] Downloaded and attached photo for {reg_num}")
-                else:
-                    stats['logs'].append(f"[Warning] {reg_num}: {msg}")
+            existing_student = Student.objects.filter(register_number=reg_num).first()
+            if existing_student and new_only:
+                stats['skipped'] += 1
+                stats['logs'].append(f"[Skipped] Student {reg_num} already exists (Add New Only enabled).")
+                continue
+
+            name = get_val(row, name_idx)
+            fname = get_val(row, fname_idx)
+            lname = get_val(row, lname_idx)
+
+            raw_dept = get_val(row, dept_idx)
+            department = (raw_dept or default_branch or 'CSE').upper()
+            raw_year = get_val(row, year_idx)
+            year = normalize_academic_year(raw_year, fallback=default_year or '3')
+            raw_sec = get_val(row, sec_idx)
+            section = (raw_sec or default_section or 'A').upper()
+            email = get_val(row, email_idx)
+            phone = get_val(row, phone_idx)
+
+            if existing_student:
+                student = existing_student
+                created = False
+                stats['updated'] += 1
+                stats['logs'].append(f"[OK] Student {reg_num} updated")
+                if not student.enrolled_by and enrolled_by:
+                    student.enrolled_by = enrolled_by
+                    student.enrolled_by_name = enrolled_by_name or student.enrolled_by_name
             else:
-                StudentPhoto.objects.get_or_create(
-                    student=student,
-                    drive_file_id=drive_id,
-                    defaults={'source_url': p_url, 'is_primary': is_primary, 'photo_order': order}
-                )
+                student = Student(register_number=reg_num)
+                created = True
+                stats['created'] += 1
+                stats['logs'].append(f"[OK] Student {reg_num} created")
+                if enrolled_by:
+                    student.enrolled_by = enrolled_by
+                student.enrolled_by_name = enrolled_by_name or 'Institutional Registry'
+
+            student.registration_id = reg_num
+            if name:
+                student.name = name
+            if fname:
+                student.firstname = fname
+            if lname:
+                student.lastname = lname
+            if not student.name and (student.firstname or student.lastname):
+                student.name = f"{student.firstname or ''} {student.lastname or ''}".strip()
+
+            if department:
+                student.department = department
+                student.branch = department
+            if year:
+                student.year = year
+            if section:
+                student.section = section
+            if email:
+                student.email = email
+            if phone:
+                student.phone = phone
+            student.save()
+
+            # Process Photos
+            photo_urls = [
+                (get_val(row, photo1_idx), True, 1),
+                (get_val(row, photo2_idx), False, 2),
+                (get_val(row, photo3_idx), False, 3),
+            ]
+
+            for p_url, is_primary, order in photo_urls:
+                if not p_url:
+                    continue
+                drive_id = extract_google_drive_file_id(p_url)
+                if not drive_id:
+                    continue
+
+                stats['photos_processed'] += 1
+                if download_photos:
+                    try:
+                        success, msg = attach_drive_photo_to_student(student, p_url, is_primary=is_primary)
+                        if success:
+                            stats['logs'].append(f"[OK] Downloaded and attached photo for {reg_num}")
+                        else:
+                            stats['logs'].append(f"[Warning] Photo for {reg_num}: {msg}")
+                    except Exception as photo_err:
+                        stats['logs'].append(f"[Warning] Photo error for {reg_num}: {photo_err}")
+                else:
+                    StudentPhoto.objects.get_or_create(
+                        student=student,
+                        drive_file_id=drive_id,
+                        defaults={'source_url': p_url, 'is_primary': is_primary, 'photo_order': order}
+                    )
+        except Exception as row_exc:
+            stats['errors'] += 1
+            stats['logs'].append(f"Row {i} error: {row_exc}")
+            continue
 
     return stats
 
