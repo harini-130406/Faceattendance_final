@@ -12,33 +12,45 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def _extract_name_email(addr_string):
+    """Parse 'Display Name <email@example.com>' or plain 'email@example.com'."""
+    addr_string = (addr_string or '').strip()
+    if '<' in addr_string and '>' in addr_string:
+        name = addr_string.split('<')[0].strip()
+        email = addr_string.split('<')[1].replace('>', '').strip()
+    else:
+        name = ''
+        email = addr_string
+    return name, email
+
+
 class SmartFailoverEmailBackend(EmailBackend):
     """
-    Resilient Email Backend supporting both HTTPS Email APIs (Port 443 - unblocked on Railway)
-    and Multi-Strategy SMTP (Ports 465 SSL & 587 STARTTLS).
-    
-    1. If RESEND_API_KEY is present, dispatches via Resend HTTPS REST API (Port 443).
-    2. If BREVO_API_KEY is present, dispatches via Brevo HTTPS REST API (Port 443).
-    3. Otherwise, falls back to direct SMTP with IPv4 SNI wrapping and multi-port failover.
+    Resilient Email Backend with priority order:
+    1. SendGrid HTTPS API  (SENDGRID_API_KEY)  - Most reliable, free 100/day
+    2. Brevo HTTPS API     (BREVO_API_KEY)
+    3. Resend HTTPS API    (RESEND_API_KEY)
+    4. Direct SMTP fallback (Gmail / any SMTP)
+    All API methods use Port 443 HTTPS - never blocked by Railway cloud firewall.
     """
+
     def __init__(self, host=None, port=None, username=None, password=None,
                  use_tls=None, fail_silently=False, use_ssl=None, timeout=None,
                  ssl_keyfile=None, ssl_certfile=None, **kwargs):
-        
-        # Sanitize password and username (strip all inner and outer whitespace from app passwords)
+
         default_pwd = getattr(settings, 'EMAIL_HOST_PASSWORD', '') or ''
         sanitized_password = (password or default_pwd).replace(' ', '').strip()
-        default_usr = getattr(settings, 'EMAIL_HOST_USER', 'proconnect795@gmail.com') or 'proconnect795@gmail.com'
+        default_usr = getattr(settings, 'EMAIL_HOST_USER', '') or ''
         sanitized_user = (username or default_usr).strip()
 
         super().__init__(
             host=host or getattr(settings, 'EMAIL_HOST', 'smtp.gmail.com'),
-            port=port or getattr(settings, 'EMAIL_PORT', 465),
+            port=port or getattr(settings, 'EMAIL_PORT', 587),
             username=sanitized_user,
             password=sanitized_password,
-            use_tls=use_tls if use_tls is not None else getattr(settings, 'EMAIL_USE_TLS', False),
+            use_tls=use_tls if use_tls is not None else getattr(settings, 'EMAIL_USE_TLS', True),
             fail_silently=fail_silently,
-            use_ssl=use_ssl if use_ssl is not None else getattr(settings, 'EMAIL_USE_SSL', True),
+            use_ssl=use_ssl if use_ssl is not None else getattr(settings, 'EMAIL_USE_SSL', False),
             timeout=timeout or getattr(settings, 'EMAIL_TIMEOUT', 15),
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
@@ -49,25 +61,45 @@ class SmartFailoverEmailBackend(EmailBackend):
         if not email_messages:
             return 0
 
-        # Check for HTTPS Email API Keys (Bypasses Railway SMTP firewall on Port 443)
-        brevo_key = os.environ.get('BREVO_API_KEY') or getattr(settings, 'BREVO_API_KEY', '')
-        resend_key = os.environ.get('RESEND_API_KEY') or getattr(settings, 'RESEND_API_KEY', '')
+        sendgrid_key = (os.environ.get('SENDGRID_API_KEY') or getattr(settings, 'SENDGRID_API_KEY', '')).strip()
+        brevo_key = (os.environ.get('BREVO_API_KEY') or getattr(settings, 'BREVO_API_KEY', '')).strip()
+        resend_key = (os.environ.get('RESEND_API_KEY') or getattr(settings, 'RESEND_API_KEY', '')).strip()
 
-        if brevo_key:
-            return self._send_via_brevo(email_messages, brevo_key.strip())
+        if sendgrid_key:
+            logger.info("[SmartFailoverEmail] Using SendGrid HTTPS API")
+            return self._send_via_sendgrid(email_messages, sendgrid_key)
+        elif brevo_key:
+            logger.info("[SmartFailoverEmail] Using Brevo HTTPS API")
+            return self._send_via_brevo(email_messages, brevo_key)
         elif resend_key:
-            return self._send_via_resend(email_messages, resend_key.strip())
+            logger.info("[SmartFailoverEmail] Using Resend HTTPS API")
+            return self._send_via_resend(email_messages, resend_key)
 
-        # Fallback to standard SMTP
+        logger.info("[SmartFailoverEmail] Using SMTP fallback")
         return super().send_messages(email_messages)
 
-    def _send_via_resend(self, email_messages, api_key):
+    # ──────────────────────────────────────────────────────────────────────────
+    # SendGrid HTTPS API
+    # ──────────────────────────────────────────────────────────────────────────
+    def _send_via_sendgrid(self, email_messages, api_key):
         num_sent = 0
-        url = "https://api.resend.com/emails"
-        
+        url = "https://api.sendgrid.com/v3/mail/send"
+
+        default_from_name, default_from_email = _extract_name_email(
+            os.environ.get('SENDGRID_FROM_EMAIL')
+            or getattr(settings, 'SENDGRID_FROM_EMAIL', '')
+            or getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+            or os.environ.get('EMAIL_HOST_USER', '')
+        )
+        if not default_from_name:
+            default_from_name = (
+                os.environ.get('SENDGRID_FROM_NAME')
+                or getattr(settings, 'SENDGRID_FROM_NAME', '')
+                or "Smart FaceAttendance"
+            )
+
         for msg in email_messages:
             try:
-                # Extract HTML alternative if present
                 html_body = None
                 if hasattr(msg, 'alternatives'):
                     for content, mimetype in msg.alternatives:
@@ -75,19 +107,24 @@ class SmartFailoverEmailBackend(EmailBackend):
                             html_body = content
                             break
 
-                from_sender = msg.from_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'proconnect795@gmail.com')
-                # If using generic domain, default to Resend verified testing sender
-                if "@gmail.com" in from_sender and not os.environ.get('RESEND_CUSTOM_DOMAIN'):
-                    from_sender = "Smart Attendance System <onboarding@resend.dev>"
+                from_name, from_email = _extract_name_email(msg.from_email)
+                if not from_name:
+                    from_name = default_from_name
+                if not from_email or '@' not in from_email:
+                    from_email = default_from_email
 
                 payload = {
-                    "from": from_sender,
-                    "to": list(msg.to),
-                    "subject": msg.subject,
-                    "text": msg.body or "",
+                    "from": {"email": from_email, "name": from_name},
+                    "personalizations": [
+                        {
+                            "to": [{"email": addr.strip()} for addr in msg.to if addr.strip()],
+                            "subject": msg.subject,
+                        }
+                    ],
+                    "content": [{"type": "text/plain", "value": msg.body or " "}],
                 }
                 if html_body:
-                    payload["html"] = html_body
+                    payload["content"].append({"type": "text/html", "value": html_body})
 
                 data = json.dumps(payload).encode('utf-8')
                 req = urllib.request.Request(
@@ -96,57 +133,53 @@ class SmartFailoverEmailBackend(EmailBackend):
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     },
                     method="POST"
                 )
 
-                logger.info(f"[SmartFailoverEmail] Dispatching via Resend HTTPS API to {msg.to}...")
+                logger.info(f"[SmartFailoverEmail] SendGrid: {from_email} -> {msg.to}")
                 with urllib.request.urlopen(req, timeout=self.timeout) as response:
-                    res_body = response.read().decode('utf-8')
-                    logger.info(f"[SmartFailoverEmail] Resend API success: {res_body}")
+                    logger.info(f"[SmartFailoverEmail] SendGrid success: HTTP {response.status}")
                     num_sent += 1
+
             except urllib.error.HTTPError as http_err:
                 try:
-                    err_json = json.loads(http_err.read().decode('utf-8'))
-                    err_detail = err_json.get('message', http_err.reason)
+                    err_body = http_err.read().decode('utf-8')
+                    err_json = json.loads(err_body)
+                    errs = err_json.get('errors', [])
+                    err_detail = '; '.join(e.get('message', '') for e in errs) or http_err.reason
                 except Exception:
                     err_detail = str(http_err)
-                logger.error(f"[SmartFailoverEmail] Resend API rejected: {err_detail}")
+                logger.error(f"[SmartFailoverEmail] SendGrid rejected: {err_detail}")
                 if not self.fail_silently:
-                    raise Exception(err_detail)
+                    raise Exception(f"SendGrid error: {err_detail}")
             except Exception as e:
-                logger.error(f"[SmartFailoverEmail] Resend API error: {e}")
+                logger.error(f"[SmartFailoverEmail] SendGrid error: {e}")
                 if not self.fail_silently:
-                    raise e
+                    raise
 
         return num_sent
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Brevo HTTPS API
+    # ──────────────────────────────────────────────────────────────────────────
     def _send_via_brevo(self, email_messages, api_key):
         num_sent = 0
         url = "https://api.brevo.com/v3/smtp/email"
-        
-        default_sender = (
+
+        default_from_raw = (
             os.environ.get('BREVO_SENDER_EMAIL')
             or getattr(settings, 'BREVO_SENDER_EMAIL', '')
             or getattr(settings, 'DEFAULT_FROM_EMAIL', '')
             or os.environ.get('EMAIL_HOST_USER', '')
-            or 'proconnect795@gmail.com'
-        ).strip()
-        default_name = (
-            os.environ.get('BREVO_SENDER_NAME')
-            or getattr(settings, 'BREVO_SENDER_NAME', '')
-            or "Smart FaceAttendance"
-        ).strip()
-
-        # Handle compound format in default sender e.g. "Smart FaceAttendance<proconnect795@gmail.com>"
-        if '<' in default_sender and '>' in default_sender:
-            name_p = default_sender.split('<')[0].strip()
-            email_p = default_sender.split('<')[1].replace('>', '').strip()
-            if name_p:
-                default_name = name_p
-            if email_p:
-                default_sender = email_p
+        )
+        default_from_name, default_from_email = _extract_name_email(default_from_raw)
+        if not default_from_name:
+            default_from_name = (
+                os.environ.get('BREVO_SENDER_NAME')
+                or getattr(settings, 'BREVO_SENDER_NAME', '')
+                or "Smart FaceAttendance"
+            )
 
         for msg in email_messages:
             try:
@@ -157,43 +190,14 @@ class SmartFailoverEmailBackend(EmailBackend):
                             html_body = content
                             break
 
-                sender_name = default_name
-                sender_email = default_sender
-
-                from_addr = (msg.from_email or '').strip()
-                if '<' in from_addr and '>' in from_addr:
-                    name_part = from_addr.split('<')[0].strip()
-                    email_part = from_addr.split('<')[1].replace('>', '').strip()
-                    if name_part:
-                        sender_name = name_part
-                    if email_part:
-                        sender_email = email_part
-                elif from_addr and '@' in from_addr:
-                    sender_email = from_addr
-
-                # Override with explicit Brevo sender email if configured in environment
-                explicit_brevo_sender = os.environ.get('BREVO_SENDER_EMAIL', '').strip()
-                if explicit_brevo_sender:
-                    if '<' in explicit_brevo_sender and '>' in explicit_brevo_sender:
-                        exp_name = explicit_brevo_sender.split('<')[0].strip()
-                        exp_email = explicit_brevo_sender.split('<')[1].replace('>', '').strip()
-                        if exp_name:
-                            sender_name = exp_name
-                        if exp_email:
-                            sender_email = exp_email
-                    else:
-                        sender_email = explicit_brevo_sender
-
-                # Sanitize sender email so it is always a pure email address for Brevo
-                if '<' in sender_email and '>' in sender_email:
-                    sender_email = sender_email.split('<')[1].replace('>', '').strip()
-                sender_email = sender_email.strip()
+                from_name, from_email = _extract_name_email(msg.from_email)
+                if not from_name:
+                    from_name = default_from_name
+                if not from_email or '@' not in from_email:
+                    from_email = default_from_email
 
                 payload = {
-                    "sender": {
-                        "name": sender_name,
-                        "email": sender_email
-                    },
+                    "sender": {"name": from_name, "email": from_email},
                     "to": [{"email": addr.strip()} for addr in msg.to if addr.strip()],
                     "subject": msg.subject,
                     "textContent": msg.body or "",
@@ -205,92 +209,130 @@ class SmartFailoverEmailBackend(EmailBackend):
                 req = urllib.request.Request(
                     url,
                     data=data,
-                    headers={
-                        "api-key": api_key,
-                        "Content-Type": "application/json",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                    },
+                    headers={"api-key": api_key, "Content-Type": "application/json"},
                     method="POST"
                 )
 
-                logger.info(f"[SmartFailoverEmail] Dispatching via Brevo HTTPS API from {sender_email} to {msg.to}...")
+                logger.info(f"[SmartFailoverEmail] Brevo: {from_email} -> {msg.to}")
                 with urllib.request.urlopen(req, timeout=self.timeout) as response:
-                    res_body = response.read().decode('utf-8')
-                    logger.info(f"[SmartFailoverEmail] Brevo API success: {res_body}")
+                    logger.info(f"[SmartFailoverEmail] Brevo success: {response.read().decode()}")
                     num_sent += 1
+
             except urllib.error.HTTPError as http_err:
                 try:
                     err_json = json.loads(http_err.read().decode('utf-8'))
                     err_detail = err_json.get('message', http_err.reason)
                 except Exception:
                     err_detail = str(http_err)
-                logger.error(f"[SmartFailoverEmail] Brevo API rejected: {err_detail}")
+                logger.error(f"[SmartFailoverEmail] Brevo rejected: {err_detail}")
                 if not self.fail_silently:
-                    raise Exception(f"Brevo API error: {err_detail}")
+                    raise Exception(f"Brevo error: {err_detail}")
             except Exception as e:
-                logger.error(f"[SmartFailoverEmail] Brevo API error: {e}")
+                logger.error(f"[SmartFailoverEmail] Brevo error: {e}")
                 if not self.fail_silently:
-                    raise e
+                    raise
 
         return num_sent
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Resend HTTPS API
+    # ──────────────────────────────────────────────────────────────────────────
+    def _send_via_resend(self, email_messages, api_key):
+        num_sent = 0
+        url = "https://api.resend.com/emails"
+
+        for msg in email_messages:
+            try:
+                html_body = None
+                if hasattr(msg, 'alternatives'):
+                    for content, mimetype in msg.alternatives:
+                        if mimetype == 'text/html':
+                            html_body = content
+                            break
+
+                from_name, from_email = _extract_name_email(msg.from_email)
+                sender_str = f"{from_name} <{from_email}>" if from_name else from_email
+
+                payload = {
+                    "from": sender_str,
+                    "to": list(msg.to),
+                    "subject": msg.subject,
+                    "text": msg.body or "",
+                }
+                if html_body:
+                    payload["html"] = html_body
+
+                data = json.dumps(payload).encode('utf-8')
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    method="POST"
+                )
+
+                logger.info(f"[SmartFailoverEmail] Resend: {sender_str} -> {msg.to}")
+                with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                    logger.info(f"[SmartFailoverEmail] Resend success: {response.read().decode()}")
+                    num_sent += 1
+
+            except urllib.error.HTTPError as http_err:
+                try:
+                    err_json = json.loads(http_err.read().decode('utf-8'))
+                    err_detail = err_json.get('message', http_err.reason)
+                except Exception:
+                    err_detail = str(http_err)
+                logger.error(f"[SmartFailoverEmail] Resend rejected: {err_detail}")
+                if not self.fail_silently:
+                    raise Exception(f"Resend error: {err_detail}")
+            except Exception as e:
+                logger.error(f"[SmartFailoverEmail] Resend error: {e}")
+                if not self.fail_silently:
+                    raise
+
+        return num_sent
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # SMTP Fallback (multi-strategy)
+    # ──────────────────────────────────────────────────────────────────────────
     def open(self):
         if self.connection:
             return False
 
         last_error = None
 
-        # Strategy 1: Standard SMTP_SSL on Port 465
-        try:
-            logger.info(f"[SmartFailoverEmail] Connecting to {self.host}:465 (SSL)...")
-            self.connection = smtplib.SMTP_SSL(self.host, 465, timeout=self.timeout)
-            if self.username and self.password:
-                self.connection.login(self.username, self.password)
-            logger.info("[SmartFailoverEmail] Connected & authenticated via Port 465 SSL!")
-            return True
-        except Exception as e1:
-            logger.warning(f"[SmartFailoverEmail] Port 465 SSL failed: {e1}")
-            last_error = e1
-            self._close_conn()
+        for attempt, strategy in enumerate(['SMTP_SSL:465', 'IPv4_SNI:465', 'STARTTLS:587']):
+            try:
+                if strategy == 'SMTP_SSL:465':
+                    logger.info(f"[SmartFailoverEmail] Trying Port 465 SSL...")
+                    self.connection = smtplib.SMTP_SSL(self.host, 465, timeout=self.timeout)
+                elif strategy == 'IPv4_SNI:465':
+                    logger.info(f"[SmartFailoverEmail] Trying IPv4 SNI Port 465...")
+                    ipv4_addr = socket.gethostbyname(self.host)
+                    ctx = ssl.create_default_context()
+                    raw_sock = socket.create_connection((ipv4_addr, 465), timeout=self.timeout)
+                    ssl_sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
+                    self.connection = smtplib.SMTP_SSL()
+                    self.connection.sock = ssl_sock
+                    self.connection.file = ssl_sock.makefile('rb')
+                    self.connection.getreply()
+                else:
+                    logger.info(f"[SmartFailoverEmail] Trying Port 587 STARTTLS...")
+                    self.connection = smtplib.SMTP(self.host, 587, timeout=self.timeout)
+                    self.connection.ehlo()
+                    self.connection.starttls()
+                    self.connection.ehlo()
 
-        # Strategy 2: Explicit IPv4 socket connection with SSL SNI on Port 465
-        # (Resolves issues where cloud environments lack IPv6 routing for smtp.gmail.com)
-        try:
-            logger.info(f"[SmartFailoverEmail] Resolving IPv4 for {self.host}:465...")
-            ipv4_addr = socket.gethostbyname(self.host)
-            ctx = ssl.create_default_context()
-            raw_sock = socket.create_connection((ipv4_addr, 465), timeout=self.timeout)
-            ssl_sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
-            self.connection = smtplib.SMTP_SSL()
-            self.connection.sock = ssl_sock
-            self.connection.file = ssl_sock.makefile('rb')
-            self.connection.getreply()
-            if self.username and self.password:
-                self.connection.login(self.username, self.password)
-            logger.info("[SmartFailoverEmail] Connected & authenticated via IPv4 SNI Port 465 SSL!")
-            return True
-        except Exception as e2:
-            logger.warning(f"[SmartFailoverEmail] IPv4 SNI Port 465 failed: {e2}")
-            last_error = e2
-            self._close_conn()
+                if self.username and self.password:
+                    self.connection.login(self.username, self.password)
+                logger.info(f"[SmartFailoverEmail] Connected via {strategy}!")
+                return True
 
-        # Strategy 3: STARTTLS on Port 587
-        try:
-            logger.info(f"[SmartFailoverEmail] Connecting to {self.host}:587 (STARTTLS)...")
-            self.connection = smtplib.SMTP(self.host, 587, timeout=self.timeout)
-            self.connection.ehlo()
-            self.connection.starttls()
-            self.connection.ehlo()
-            if self.username and self.password:
-                self.connection.login(self.username, self.password)
-            logger.info("[SmartFailoverEmail] Connected & authenticated via Port 587 STARTTLS!")
-            return True
-        except Exception as e3:
-            logger.warning(f"[SmartFailoverEmail] Port 587 STARTTLS failed: {e3}")
-            last_error = e3
-            self._close_conn()
+            except Exception as err:
+                logger.warning(f"[SmartFailoverEmail] {strategy} failed: {err}")
+                last_error = err
+                self._close_conn()
 
-        logger.error(f"[SmartFailoverEmail] All email connection strategies exhausted. Last error: {last_error}")
+        logger.error(f"[SmartFailoverEmail] All SMTP strategies failed. Last: {last_error}")
         if not self.fail_silently:
             raise last_error
         return False

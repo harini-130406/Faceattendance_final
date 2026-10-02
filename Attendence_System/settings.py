@@ -237,7 +237,12 @@ SERVER_EMAIL = os.environ.get('SERVER_EMAIL', EMAIL_HOST_USER) or EMAIL_HOST_USE
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 15))  # 15-second socket timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
-# Brevo API Configuration (HTTPS Port 443 - zero firewall blocks on Railway/cloud)
+# SendGrid API Configuration (Priority 1 - Free 100 emails/day, HTTPS Port 443)
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '').strip()
+SENDGRID_FROM_EMAIL = os.environ.get('SENDGRID_FROM_EMAIL', DEFAULT_FROM_EMAIL).strip()
+SENDGRID_FROM_NAME = os.environ.get('SENDGRID_FROM_NAME', 'Smart FaceAttendance').strip()
+
+# Brevo API Configuration (Priority 2 - HTTPS Port 443)
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
 BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', DEFAULT_FROM_EMAIL).strip()
 BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'Smart FaceAttendance').strip()
