@@ -301,6 +301,19 @@
 
                 <!-- Camera Controls & Device Picker -->
                 <div class="mt-3">
+                    <!-- Front / Back Camera Option Buttons -->
+                    <div class="mb-3 d-flex justify-content-center align-items-center flex-wrap" style="gap: 8px;">
+                        <span class="text-muted small font-weight-bold mr-2">
+                            <i class="fas fa-camera-rotate mr-1 text-primary"></i> Camera Option:
+                        </span>
+                        <button type="button" class="btn btn-sm btn-primary font-weight-bold px-3 py-1" id="liveCamFrontBtn" onclick="switchLiveCameraFacing('user')" style="border-radius: 20px; transition: all 0.2s ease;">
+                            <i class="fas fa-user mr-1"></i> Front Camera
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold px-3 py-1" id="liveCamBackBtn" onclick="switchLiveCameraFacing('environment')" style="border-radius: 20px; transition: all 0.2s ease;">
+                            <i class="fas fa-camera mr-1"></i> Back / Rear Camera
+                        </button>
+                    </div>
+
                     <div class="row align-items-center">
                         <div class="col-md-6 mb-2">
                             <label class="small font-weight-bold text-muted mb-1 d-block">
@@ -438,6 +451,7 @@ const state = {
     soundEnabled: true,
     isMirrored: false,
     selectedDeviceId: '',
+    facingMode: 'user', // 'user' (front) or 'environment' (back)
     students: {}, // id -> { id, student_id, name, status: 'Absent'/'Present', confidence: 0, photo_url, lastSeen }
 };
 
@@ -542,23 +556,76 @@ async function enumerateCameras() {
     }
 }
 
+async function switchLiveCameraFacing(facing) {
+    state.facingMode = facing;
+    const btnFront = document.getElementById('liveCamFrontBtn');
+    const btnBack = document.getElementById('liveCamBackBtn');
+
+    if (facing === 'user') {
+        if (btnFront) btnFront.className = 'btn btn-sm btn-primary font-weight-bold px-3 py-1';
+        if (btnBack) btnBack.className = 'btn btn-sm btn-outline-secondary font-weight-bold px-3 py-1';
+    } else {
+        if (btnFront) btnFront.className = 'btn btn-sm btn-outline-secondary font-weight-bold px-3 py-1';
+        if (btnBack) btnBack.className = 'btn btn-sm btn-primary font-weight-bold px-3 py-1';
+    }
+
+    // Reset specific device dropdown to allow facingMode preference
+    if (cameraSourceSelect) cameraSourceSelect.value = '';
+
+    // If camera is currently active, switch instantly
+    if (state.stream) {
+        await startCamera();
+    }
+}
+
 async function startCamera() {
     stopCamera();
 
-    const deviceId = cameraSourceSelect.value;
-    const constraints = {
-        video: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-        },
-        audio: false
-    };
+    const deviceId = cameraSourceSelect ? cameraSourceSelect.value : '';
+    let stream = null;
+
+    cameraStatusText.textContent = "Connecting Camera...";
 
     try {
-        cameraStatusText.textContent = "Connecting Camera...";
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (deviceId) {
+            // Specific device explicitly chosen in dropdown
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+        } else {
+            const requestedFacing = state.facingMode || 'user';
+            // Priority 1: Exact facingMode (essential for mobile rear vs front camera)
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { exact: requestedFacing },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                });
+            } catch (exactErr) {
+                // Priority 2: Ideal facingMode
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: { ideal: requestedFacing },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    });
+                } catch (idealErr) {
+                    // Priority 3: Fallback generic video stream
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                }
+            }
+        }
+
         state.stream = stream;
         video.srcObject = stream;
 

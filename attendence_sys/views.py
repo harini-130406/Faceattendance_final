@@ -1530,30 +1530,32 @@ passwordResetConfirmPage = passwordResetConfirmView
 @login_required(login_url='login')
 def changePasswordView(request):
     """
-    Allows authenticated users to change their password from their profile page.
+    Allows authenticated users to change their password securely.
+    Supports GET (dedicated form view) and POST (password update).
     """
     if request.method == 'POST':
         old_password = request.POST.get('old_password', '')
         new_password = request.POST.get('new_password', '')
         confirm_password = request.POST.get('confirm_password', '')
 
-        if not request.user.check_password(old_password):
+        # Check current password only if user has a usable password set
+        if request.user.has_usable_password() and not request.user.check_password(old_password):
             messages.error(request, "Incorrect current password.")
-            return redirect('account')
+            return render(request, 'attendence_sys/password_change.html', {'error': 'Incorrect current password.'})
 
         if len(new_password) < 6:
             messages.error(request, "New password must be at least 6 characters long.")
-            return redirect('account')
+            return render(request, 'attendence_sys/password_change.html', {'error': 'New password must be at least 6 characters long.'})
 
         if new_password != confirm_password:
             messages.error(request, "New password and confirmation password do not match.")
-            return redirect('account')
+            return render(request, 'attendence_sys/password_change.html', {'error': 'New password and confirmation password do not match.'})
 
         request.user.set_password(new_password)
         request.user.save()
         update_session_auth_hash(request, request.user)
 
         messages.success(request, "Your password has been changed successfully!")
-        return redirect('account')
+        return redirect('home')
 
-    return redirect('account')
+    return render(request, 'attendence_sys/password_change.html')

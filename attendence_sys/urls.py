@@ -21,6 +21,7 @@ urlpatterns = [
 
     path('account/', views.facultyProfile, name='account'),
     path('account/change-password/', views.changePasswordView, name='change_password'),
+    path('password-change/', views.changePasswordView, name='password_change_direct'),
 
     # Attendance URLs
     path('attendance/take/', views.takeAttendancePage, name='take_attendance'),

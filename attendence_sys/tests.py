@@ -135,3 +135,53 @@ class StorageAbstractionTestCase(TestCase):
             finally:
                 if os.path.exists(legacy_file):
                     os.remove(legacy_file)
+
+
+class PasswordChangeTestCase(TestCase):
+    """
+    Verifies direct Password Change functionality for authenticated users.
+    """
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user(
+            username='testfaculty',
+            email='testfaculty@example.com',
+            password='OldPassword123!'
+        )
+        self.client = Client()
+
+    def test_change_password_get(self):
+        """Verify GET returns 200 and renders the change password template."""
+        self.client.force_login(self.user)
+        response = self.client.get('/account/change-password/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Change Password')
+
+        # Also verify alias /password-change/
+        response_alias = self.client.get('/password-change/')
+        self.assertEqual(response_alias.status_code, 200)
+
+    def test_change_password_wrong_old(self):
+        """Verify error when incorrect current password is provided."""
+        self.client.force_login(self.user)
+        response = self.client.post('/account/change-password/', {
+            'old_password': 'WrongPassword!',
+            'new_password': 'NewPassword123!',
+            'confirm_password': 'NewPassword123!'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Incorrect current password')
+
+    def test_change_password_success(self):
+        """Verify successful password update."""
+        self.client.force_login(self.user)
+        response = self.client.post('/account/change-password/', {
+            'old_password': 'OldPassword123!',
+            'new_password': 'NewPassword456!',
+            'confirm_password': 'NewPassword456!'
+        }, follow=True)
+        self.assertEqual(response.status_code, 200)
+        # Reload user from DB and check new password
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('NewPassword456!'))
+

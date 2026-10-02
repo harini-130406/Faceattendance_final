@@ -76,15 +76,15 @@ class SmartPasswordResetForm(PasswordResetForm):
             if not u.email:
                 faculty = getattr(u, 'faculty', None)
                 if faculty and faculty.email:
-                    u.email = faculty.email
+                    u.email = faculty.email.strip()
                     u.save(update_fields=['email'])
-                elif u.username.lower() in ('admin', 'proconnect795'):
+                elif u.username.lower() in ('admin', 'proconnect795', 'subhaharini'):
                     u.email = 'proconnect795@gmail.com'
                     u.save(update_fields=['email'])
 
-            if u.email and u.has_usable_password():
+            if u.email:
                 logger.info(f"[SmartPasswordResetForm] Found active recipient: user={u.username}, dest_email={u.email}")
                 yield u
             else:
-                logger.warning(f"[SmartPasswordResetForm] User {u.username} skipped: email={u.email}, usable_password={u.has_usable_password()}")
+                logger.warning(f"[SmartPasswordResetForm] User {u.username} skipped: no registered email address found")
 
