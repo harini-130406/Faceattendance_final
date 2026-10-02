@@ -2,7 +2,8 @@
 # Smart Attendance System - Production Dependencies
 # ==============================================================================
 
-# Core Framework
+# Core Framework & Packaging
+setuptools==80.10.2
 Django>=6.1.1
 asgiref>=3.12.1
 sqlparse>=0.6.0

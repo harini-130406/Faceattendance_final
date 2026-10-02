@@ -35,14 +35,26 @@ SECRET_KEY = os.environ.get('SECRET_KEY', '16)7t#^!ebgfc9a==7+5jp=z)y!it@2ke%6@0
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 
-# ALLOWED_HOSTS: comma-separated list in env (e.g. 'domain.com,api.domain.com')
+# ALLOWED_HOSTS: environment-driven with safe production fallbacks
 allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '')
 if allowed_hosts_env:
     ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
 elif DEBUG:
-    ALLOWED_HOSTS = ['*']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.0.2.2', 'testserver']
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = [
+        'localhost',
+        '127.0.0.1',
+        'faceattendancefinal-production.up.railway.app',
+        '.railway.app',
+        '.up.railway.app',
+        'testserver',
+    ]
+
+# Support Railway dynamic domain environment variable if present
+railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+if railway_domain and railway_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(railway_domain)
 
 
 # Application definition
@@ -249,3 +261,14 @@ if not DEBUG:
     csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
     if csrf_origins_env:
         CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_env.split(',') if o.strip()]
+    else:
+        CSRF_TRUSTED_ORIGINS = [
+            'https://faceattendancefinal-production.up.railway.app',
+            'https://*.railway.app',
+            'https://*.up.railway.app',
+        ]
+
+    if railway_domain:
+        https_railway = f'https://{railway_domain}'
+        if https_railway not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(https_railway)

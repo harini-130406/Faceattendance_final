@@ -4,7 +4,7 @@
 nixPkgs = ["cmake", "pkg-config", "gcc", "openblas"]
 
 [phases.install]
-cmds = ["pip install --upgrade pip setuptools wheel", "pip install -r requirements.txt"]
+cmds = ["pip install --upgrade pip wheel", "pip install \"setuptools==80.10.2\"", "pip install -r requirements.txt"]
 
 [phases.build]
 cmds = ["python manage.py collectstatic --noinput"]
