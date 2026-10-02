@@ -23,4 +23,8 @@ urlpatterns = [
     path('attendance/<int:pk>/override/', api_views.AttendanceOverrideAPIView.as_view(), name='api_attendance_override'),
     path('attendance/history/', api_views.AttendanceHistoryAPIView.as_view(), name='api_attendance_history'),
     path('attendance/reports/', api_views.AttendanceReportsAPIView.as_view(), name='api_attendance_reports'),
+
+    # Data Migration & Sync
+    path('sync-data/', api_views.DataSyncAPIView.as_view(), name='api_sync_data'),
 ]
+

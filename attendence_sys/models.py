@@ -207,7 +207,7 @@ from django.dispatch import receiver
 
 @receiver(post_save, sender=User)
 def create_faculty_profile(sender, instance, created, **kwargs):
-    if created:
+    if created and not kwargs.get('raw', False):
         Faculty.objects.get_or_create(user=instance, defaults={
             'firstname': instance.first_name or instance.username,
             'lastname': instance.last_name or '',

@@ -1004,3 +1004,42 @@ class AttendanceReportsAPIView(views.APIView):
             'year_breakdown': year_breakdown,
             'student_breakdown': student_breakdown,
         })
+
+
+class DataSyncAPIView(views.APIView):
+    """
+    Secure endpoint for migrating fixtures/data from local workspace to production.
+    Protected by X-Sync-Token header matching SECRET_KEY.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        sync_token = request.headers.get('X-Sync-Token', '')
+        expected_token = getattr(settings, 'SYNC_SECRET_TOKEN', '') or settings.SECRET_KEY
+        if not sync_token or sync_token != expected_token:
+            return Response({'error': 'Unauthorized sync token'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        if not data or not isinstance(data, list):
+            return Response({'error': 'Fixture data must be a JSON list of objects'}, status=status.HTTP_400_BAD_REQUEST)
+
+        import tempfile
+        import json
+        from django.core.management import call_command
+
+        with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump(data, f)
+            temp_path = f.name
+
+        try:
+            call_command('loaddata', temp_path)
+            return Response({
+                'status': 'success',
+                'message': f'Successfully loaded {len(data)} objects into database.'
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
