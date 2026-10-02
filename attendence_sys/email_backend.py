@@ -106,6 +106,15 @@ class SmartFailoverEmailBackend(EmailBackend):
                     res_body = response.read().decode('utf-8')
                     logger.info(f"[SmartFailoverEmail] Resend API success: {res_body}")
                     num_sent += 1
+            except urllib.error.HTTPError as http_err:
+                try:
+                    err_json = json.loads(http_err.read().decode('utf-8'))
+                    err_detail = err_json.get('message', http_err.reason)
+                except Exception:
+                    err_detail = str(http_err)
+                logger.error(f"[SmartFailoverEmail] Resend API rejected: {err_detail}")
+                if not self.fail_silently:
+                    raise Exception(err_detail)
             except Exception as e:
                 logger.error(f"[SmartFailoverEmail] Resend API error: {e}")
                 if not self.fail_silently:
@@ -155,6 +164,15 @@ class SmartFailoverEmailBackend(EmailBackend):
                     res_body = response.read().decode('utf-8')
                     logger.info(f"[SmartFailoverEmail] Brevo API success: {res_body}")
                     num_sent += 1
+            except urllib.error.HTTPError as http_err:
+                try:
+                    err_json = json.loads(http_err.read().decode('utf-8'))
+                    err_detail = err_json.get('message', http_err.reason)
+                except Exception:
+                    err_detail = str(http_err)
+                logger.error(f"[SmartFailoverEmail] Brevo API rejected: {err_detail}")
+                if not self.fail_silently:
+                    raise Exception(err_detail)
             except Exception as e:
                 logger.error(f"[SmartFailoverEmail] Brevo API error: {e}")
                 if not self.fail_silently:

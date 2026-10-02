@@ -1539,7 +1539,13 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
         except Exception as e:
             err_str = str(e)
             logger.error(f"[PasswordReset] Email delivery failure for {target_input}: {e}", exc_info=True)
-            if '101' in err_str or 'Network is unreachable' in err_str:
+            if 'only send testing emails' in err_str.lower() or 'own email address' in err_str.lower():
+                messages.error(
+                    self.request,
+                    f"Resend Free Test Mode is limited to your registered account ({err_str}). "
+                    f"To deliver reset emails to any user (like {target_input}), switch to a free Brevo API key (BREVO_API_KEY) in Railway Variables, or verify a domain at resend.com/domains."
+                )
+            elif '101' in err_str or 'Network is unreachable' in err_str:
                 messages.error(
                     self.request,
                     f"Railway cloud firewall blocked outgoing SMTP ports ([Errno 101] Network is unreachable). "
@@ -1548,7 +1554,7 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
             else:
                 messages.error(
                     self.request,
-                    f"Unable to send reset email ({e}). Please verify the email address or check your connection."
+                    f"Unable to send reset email: {e}."
                 )
             return self.form_invalid(form)
 
