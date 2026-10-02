@@ -135,7 +135,8 @@ class SmartFailoverEmailBackend(EmailBackend):
         ).strip()
         default_name = (
             os.environ.get('BREVO_SENDER_NAME')
-            or "Smart Attendance System"
+            or getattr(settings, 'BREVO_SENDER_NAME', '')
+            or "Smart FaceAttendance"
         ).strip()
 
         for msg in email_messages:

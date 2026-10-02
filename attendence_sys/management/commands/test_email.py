@@ -49,10 +49,16 @@ class Command(BaseCommand):
         else:
             mode_desc = f"SMTP ({host}:{port})"
 
-        subject = "Smart Attendance System - Email Verification"
+        sender_name = (
+            os.environ.get('BREVO_SENDER_NAME')
+            or getattr(settings, 'BREVO_SENDER_NAME', '')
+            or "Smart FaceAttendance"
+        )
+
+        subject = f"{sender_name} - Email Verification"
         body = (
             "Hello,\n\n"
-            "This is a verification test email from the Smart Attendance System.\n"
+            f"This is a verification test email from {sender_name}.\n"
             f"Delivery Mode: {mode_desc}\n"
             f"Sender: {from_email}\n\n"
             "Your email configuration is working properly!\n"

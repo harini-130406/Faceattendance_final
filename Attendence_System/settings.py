@@ -240,7 +240,7 @@ PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 # Brevo API Configuration (HTTPS Port 443 - zero firewall blocks on Railway/cloud)
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
 BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', DEFAULT_FROM_EMAIL).strip()
-BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'Smart Attendance System').strip()
+BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'Smart FaceAttendance').strip()
 
 
 # Django REST Framework Configuration
