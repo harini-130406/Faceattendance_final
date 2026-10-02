@@ -701,7 +701,122 @@
             color: #38bdf8;
             text-decoration: none;
         }
+
+        /* -------------------------------------------------------------
+           MOBILE RESPONSIVE NAVIGATION & LAYOUT
+        ------------------------------------------------------------- */
+        @media (max-width: 1199.98px) {
+            .institution-topbar {
+                display: none !important;
+            }
+            body {
+                padding-top: 76px !important;
+            }
+            .navbar-modern {
+                top: 0 !important;
+                height: auto !important;
+                min-height: 64px !important;
+                padding: 0.6rem 1rem !important;
+            }
+            .navbar-collapse {
+                background: #0f172a !important;
+                border-radius: 16px;
+                margin-top: 10px;
+                padding: 1.2rem !important;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7) !important;
+                max-height: 80vh;
+                overflow-y: auto;
+            }
+            .navbar-nav {
+                width: 100%;
+                align-items: stretch !important;
+            }
+            .navbar-nav .nav-item {
+                width: 100%;
+                margin-bottom: 6px;
+            }
+            .nav-link-modern {
+                width: 100% !important;
+                justify-content: flex-start !important;
+                padding: 0.75rem 1rem !important;
+                border-radius: 10px;
+            }
+            .navbar-nav.ml-auto {
+                margin-top: 12px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                padding-top: 12px;
+            }
+            .navbar-collapse .dropdown-menu {
+                position: static !important;
+                float: none !important;
+                width: 100% !important;
+                background: rgba(30, 41, 59, 0.95) !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                color: #ffffff !important;
+                box-shadow: none !important;
+                margin-top: 8px !important;
+                border-radius: 12px !important;
+            }
+            .navbar-collapse .dropdown-menu .dropdown-item {
+                color: #e2e8f0 !important;
+                padding: 0.65rem 1rem !important;
+            }
+            .navbar-collapse .dropdown-menu .dropdown-item:hover {
+                background: rgba(255, 255, 255, 0.08) !important;
+                color: #ffffff !important;
+            }
+            .navbar-collapse .dropdown-menu .text-dark {
+                color: #ffffff !important;
+            }
+            .navbar-collapse .dropdown-menu .text-muted {
+                color: #94a3b8 !important;
+            }
+            .navbar-collapse .dropdown-divider {
+                border-color: rgba(255, 255, 255, 0.1) !important;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .institution-hero-banner {
+                padding: 1.5rem 1.25rem !important;
+                margin-bottom: 1.25rem !important;
+                border-radius: 16px !important;
+            }
+            .institution-hero-banner h1 {
+                font-size: 1.35rem !important;
+                line-height: 1.25 !important;
+            }
+            .institution-hero-banner p {
+                font-size: 0.85rem !important;
+                margin-bottom: 1rem !important;
+            }
+            .institution-hero-banner .btn-lg {
+                font-size: 0.88rem !important;
+                padding: 0.65rem 1rem !important;
+                width: 100% !important;
+                margin-bottom: 8px !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+            }
+            .hero-campus-badge {
+                font-size: 0.72rem !important;
+                padding: 3px 10px !important;
+            }
+            .stat-card {
+                padding: 1rem !important;
+                margin-bottom: 0.75rem !important;
+            }
+            .stat-number {
+                font-size: 1.6rem !important;
+            }
+            .table-responsive-modern {
+                padding: 0.75rem !important;
+            }
+        }
     </style>
+
     {% block extra_css %}{% endblock %}
 </head>
 <body>
