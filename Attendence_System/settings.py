@@ -218,13 +218,13 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
-# Standard Gmail SMTP Email Configuration (Password Reset & Security Alerts)
+# Resilient Email Configuration (Supports Brevo/Resend HTTPS over Port 443 + Gmail SMTP)
 # Outgoing mail delivered strictly from: proconnect795@gmail.com
 raw_pwd = os.environ.get('EMAIL_HOST_PASSWORD', '')
 email_host_password = raw_pwd.replace(' ', '').strip() if raw_pwd else 'rpwuxrwphizixghb'
 email_host_user = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com').strip() or 'proconnect795@gmail.com'
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'attendence_sys.email_backend.SmartFailoverEmailBackend')
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True

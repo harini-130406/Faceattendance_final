@@ -135,10 +135,11 @@ class SmartFailoverEmailBackend(EmailBackend):
                             html_body = content
                             break
 
+                sender_email = os.environ.get('BREVO_SENDER_EMAIL') or '24z260@psgitech.ac.in'
                 payload = {
                     "sender": {
                         "name": "Smart Attendance System",
-                        "email": getattr(settings, 'EMAIL_HOST_USER', 'proconnect795@gmail.com')
+                        "email": sender_email
                     },
                     "to": [{"email": addr} for addr in msg.to],
                     "subject": msg.subject,
