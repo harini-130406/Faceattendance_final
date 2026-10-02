@@ -37,22 +37,45 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '')
 if allowed_hosts_env:
     ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
-elif DEBUG:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '10.0.2.2', 'testserver']
 else:
     ALLOWED_HOSTS = [
         'localhost',
         '127.0.0.1',
+        '0.0.0.0',
+        '10.0.2.2',
         'faceattendancefinal-production.up.railway.app',
         '.railway.app',
         '.up.railway.app',
         'testserver',
+        '*',
     ]
 
 # Support Railway dynamic domain environment variable if present
 railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
 if railway_domain and railway_domain not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(railway_domain)
+
+# CSRF Trusted Origins: required for form POST submissions across HTTPS reverse proxies
+csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if csrf_origins_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_env.split(',') if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'https://faceattendancefinal-production.up.railway.app',
+        'https://*.railway.app',
+        'https://*.up.railway.app',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'http://0.0.0.0:8000',
+    ]
+
+if railway_domain:
+    https_railway = f'https://{railway_domain}'
+    if https_railway not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(https_railway)
+
+# Always trust X-Forwarded-Proto header from Railway/Nginx/cloud reverse proxies
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -245,7 +268,6 @@ CORS_ALLOW_HEADERS = [
 
 # Production security settings (activated only when DEBUG=False)
 if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
@@ -255,18 +277,3 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', 31536000))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-
-    csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
-    if csrf_origins_env:
-        CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_env.split(',') if o.strip()]
-    else:
-        CSRF_TRUSTED_ORIGINS = [
-            'https://faceattendancefinal-production.up.railway.app',
-            'https://*.railway.app',
-            'https://*.up.railway.app',
-        ]
-
-    if railway_domain:
-        https_railway = f'https://{railway_domain}'
-        if https_railway not in CSRF_TRUSTED_ORIGINS:
-            CSRF_TRUSTED_ORIGINS.append(https_railway)
