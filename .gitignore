@@ -21,6 +21,7 @@ db_backup*.sqlite3
 *.dump
 *.sql
 datadump.json
+sync_to_railway.py
 
 # Static & Media Collection
 staticfiles/
