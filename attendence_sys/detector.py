@@ -34,55 +34,79 @@ def get_student_face_encoding(student):
         except Exception:
             pass
 
-    # 2. Try profile_pic
-    img_path = None
-    if student.profile_pic and os.path.exists(student.profile_pic.path):
-        img_path = student.profile_pic.path
-    else:
-        # Fallback to local static directory convention
+    # 2. Try student profile_pic via Django storage abstraction
+    image_bytes = None
+    if student.profile_pic and student.profile_pic.name:
+        try:
+            if student.profile_pic.storage.exists(student.profile_pic.name):
+                with student.profile_pic.open('rb') as f:
+                    image_bytes = f.read()
+        except Exception:
+            pass
+
+    # 3. Fallback: check MEDIA_ROOT filesystem path
+    if not image_bytes:
         dept = student.department or student.branch or ''
         yr = student.year or ''
         sec = student.section or ''
         reg = student.register_number or student.registration_id or ''
-        for ext in ['jpg', 'png', 'jpeg']:
-            p = os.path.join(settings.BASE_DIR, 'static', 'images', 'Student_Images', dept, str(yr), sec, f"{reg}.{ext}")
-            if os.path.exists(p):
-                img_path = p
-                break
+        if reg:
+            for ext in ['jpg', 'png', 'jpeg']:
+                p = os.path.join(settings.MEDIA_ROOT, 'Student_Images', dept, str(yr), sec, f"{reg}.{ext}")
+                if os.path.exists(p):
+                    try:
+                        with open(p, 'rb') as f:
+                            image_bytes = f.read()
+                        break
+                    except Exception:
+                        pass
 
-    if not img_path or not os.path.exists(img_path):
-        # Try primary StudentPhoto cache
+    # 4. Backwards-compatible legacy fallback: check static/images/Student_Images
+    if not image_bytes:
+        dept = student.department or student.branch or ''
+        yr = student.year or ''
+        sec = student.section or ''
+        reg = student.register_number or student.registration_id or ''
+        if reg:
+            for ext in ['jpg', 'png', 'jpeg']:
+                legacy_p = os.path.join(settings.BASE_DIR, 'static', 'images', 'Student_Images', dept, str(yr), sec, f"{reg}.{ext}")
+                if os.path.exists(legacy_p):
+                    try:
+                        with open(legacy_p, 'rb') as f:
+                            image_bytes = f.read()
+                        break
+                    except Exception:
+                        pass
+
+    # 5. Try primary StudentPhoto from Google Drive
+    if not image_bytes:
         primary = student.get_primary_photo()
         if primary and primary.drive_file_id:
             from .google_drive_helper import fetch_drive_image_bytes
             img_bytes, _ = fetch_drive_image_bytes(primary.drive_file_id)
             if img_bytes:
-                nparr = np.frombuffer(img_bytes, np.uint8)
-                bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                if bgr is not None:
-                    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                    encs = face_recognition.face_encodings(rgb)
-                    if encs:
-                        FaceEmbedding.objects.create(
-                            student=student,
-                            embedding=json.dumps(encs[0].tolist()),
-                            model_name='face_recognition_dlib'
-                        )
-                        _ENCODINGS_CACHE[student.id] = encs[0]
-                        return encs[0]
+                image_bytes = img_bytes
+
+    if not image_bytes:
+        return None
+
+    if face_recognition is None:
         return None
 
     try:
-        rgb = face_recognition.load_image_file(img_path)
-        encs = face_recognition.face_encodings(rgb)
-        if encs:
-            FaceEmbedding.objects.create(
-                student=student,
-                embedding=json.dumps(encs[0].tolist()),
-                model_name='face_recognition_dlib'
-            )
-            _ENCODINGS_CACHE[student.id] = encs[0]
-            return encs[0]
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if bgr is not None:
+            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            encs = face_recognition.face_encodings(rgb)
+            if encs:
+                FaceEmbedding.objects.create(
+                    student=student,
+                    embedding=json.dumps(encs[0].tolist()),
+                    model_name='face_recognition_dlib'
+                )
+                _ENCODINGS_CACHE[student.id] = encs[0]
+                return encs[0]
     except Exception as e:
         print(f"[Warning] Could not extract face encoding for student {student}: {e}")
 

@@ -192,6 +192,8 @@ USE_L10N = True
 
 USE_TZ = True
 
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
@@ -207,7 +209,9 @@ STATICFILES_DIRS = [
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Media root for uploaded profile pictures and classroom images
-MEDIA_ROOT = os.path.join(BASE_DIR, 'static/images')
+# Configurable through environment variable (e.g. Railway Persistent Volume in production)
+default_media_root = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', default_media_root)
 
 # File upload limits (allows high-resolution classroom multi-photo submissions up to 25MB)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400

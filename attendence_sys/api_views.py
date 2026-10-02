@@ -435,21 +435,41 @@ class StudentPhotoProxyAPIView(views.APIView):
             if img_bytes:
                 return HttpResponse(img_bytes, content_type=content_type)
 
-        # 2. Check local uploaded profile_pic
-        if student.profile_pic and os.path.exists(student.profile_pic.path):
+        # 2. Check uploaded profile_pic via Django storage abstraction
+        if student.profile_pic and student.profile_pic.name:
             try:
-                with open(student.profile_pic.path, 'rb') as f:
-                    ext = student.profile_pic.path.split('.')[-1].lower()
-                    ctype = 'image/png' if ext == 'png' else 'image/jpeg'
-                    return HttpResponse(f.read(), content_type=ctype)
+                if student.profile_pic.storage.exists(student.profile_pic.name):
+                    with student.profile_pic.open('rb') as f:
+                        ext = student.profile_pic.name.split('.')[-1].lower()
+                        ctype = 'image/png' if ext == 'png' else 'image/jpeg'
+                        return HttpResponse(f.read(), content_type=ctype)
             except Exception:
                 pass
 
-        # 3. Fallback to default avatar asset
+        # 3. Backwards-compatible legacy filesystem fallback (e.g. static/images/Student_Images)
+        dept = student.department or student.branch or ''
+        yr = student.year or ''
+        sec = student.section or ''
+        reg = student.register_number or student.registration_id or ''
+        if reg:
+            for ext in ['jpg', 'png', 'jpeg']:
+                legacy_p = os.path.join(settings.BASE_DIR, 'static', 'images', 'Student_Images', dept, str(yr), sec, f"{reg}.{ext}")
+                if os.path.exists(legacy_p):
+                    try:
+                        with open(legacy_p, 'rb') as f:
+                            ctype = 'image/png' if ext == 'png' else 'image/jpeg'
+                            return HttpResponse(f.read(), content_type=ctype)
+                    except Exception:
+                        pass
+
+        # 4. Fallback to default avatar asset
         placeholder_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'default_avatar.png')
         if os.path.exists(placeholder_path):
-            with open(placeholder_path, 'rb') as f:
-                return HttpResponse(f.read(), content_type='image/png')
+            try:
+                with open(placeholder_path, 'rb') as f:
+                    return HttpResponse(f.read(), content_type='image/png')
+            except Exception:
+                pass
 
         return HttpResponse(status=404)
 

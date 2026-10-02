@@ -19,14 +19,29 @@ from django.views.static import serve
 from django.http import JsonResponse
 from django.conf import settings
 
+import os
+
 def health_check(request):
     return JsonResponse({'status': 'ok', 'service': 'smart-attendance-api'})
+
+def serve_media(request, path):
+    """
+    Serves user-uploaded media files from MEDIA_ROOT (e.g. Railway volume).
+    Provides transparent backwards-compatible fallback to static/images for legacy assets.
+    """
+    primary_file = os.path.join(settings.MEDIA_ROOT, path)
+    if os.path.exists(primary_file):
+        return serve(request, path, document_root=settings.MEDIA_ROOT)
+    legacy_file = os.path.join(settings.BASE_DIR, 'static', 'images', path)
+    if os.path.exists(legacy_file):
+        return serve(request, path, document_root=os.path.join(settings.BASE_DIR, 'static', 'images'))
+    return serve(request, path, document_root=settings.MEDIA_ROOT)
 
 urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('admin/', admin.site.urls),
     path('api/', include('attendence_sys.api_urls')),
     path('', include('attendence_sys.urls')),
-    re_path(r'^images/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^images/(?P<path>.*)$', serve_media, name='serve_media'),
 ]
 

@@ -3,6 +3,15 @@ import re
 import requests
 from django.conf import settings
 
+def get_drive_cache_dir():
+    """
+    Returns the Google Drive cache directory inside settings.MEDIA_ROOT,
+    ensuring it exists.
+    """
+    cache_dir = os.path.join(settings.MEDIA_ROOT, 'google_drive_cache')
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
 CACHE_DIR = os.path.join(settings.MEDIA_ROOT, 'google_drive_cache')
 
 def extract_google_drive_file_id(url_or_id):
@@ -38,12 +47,18 @@ def fetch_drive_image_bytes(drive_file_id):
     if not drive_file_id:
         return None, None
 
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    cache_path = os.path.join(CACHE_DIR, f"{drive_file_id}.jpg")
+    cache_dir = get_drive_cache_dir()
+    cache_path = os.path.join(cache_dir, f"{drive_file_id}.jpg")
 
-    # 1. Return from cache if present
+    # 1. Return from primary cache if present
     if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
         with open(cache_path, 'rb') as f:
+            return f.read(), 'image/jpeg'
+
+    # 1b. Legacy cache fallback in static/images
+    legacy_cache_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'google_drive_cache', f"{drive_file_id}.jpg")
+    if os.path.exists(legacy_cache_path) and os.path.getsize(legacy_cache_path) > 0:
+        with open(legacy_cache_path, 'rb') as f:
             return f.read(), 'image/jpeg'
 
     image_bytes = None

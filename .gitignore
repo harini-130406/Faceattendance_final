@@ -25,6 +25,7 @@ sync_to_railway.py
 
 # Static & Media Collection
 staticfiles/
+media/
 
 # Secrets & Credentials
 google_credentials.json

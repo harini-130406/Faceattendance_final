@@ -10,4 +10,4 @@ cmds = ["pip install --upgrade pip wheel", "pip install \"setuptools==80.10.2\""
 cmds = ["python manage.py collectstatic --noinput"]
 
 [start]
-cmd = "python manage.py migrate && gunicorn Attendence_System.wsgi:application --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120"
+cmd = "python manage.py migrate && python manage.py sync_media_to_volume && gunicorn Attendence_System.wsgi:application --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120"
