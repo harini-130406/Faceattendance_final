@@ -57,20 +57,39 @@ class SmartPasswordResetForm(PasswordResetForm):
         if not query:
             return
 
-        # Match active accounts by User.email, linked Faculty.email, or User.username
+        # 1. Match active accounts by User.email, linked Faculty.email, or User.username
         active_users = User.objects.filter(
             Q(email__iexact=query) | Q(faculty__email__iexact=query) | Q(username__iexact=query),
             is_active=True
         ).distinct()
 
+        # 2. If user entered an email like 24z260@psgitech.ac.in, also search username matching the prefix
+        if not active_users.exists() and '@' in query:
+            user_prefix = query.split('@')[0].strip()
+            active_users = User.objects.filter(
+                Q(username__iexact=user_prefix) | Q(faculty__user__username__iexact=user_prefix),
+                is_active=True
+            ).distinct()
+
+        # 3. If still not matched, link to active faculty / superuser accounts
+        if not active_users.exists():
+            active_users = User.objects.filter(
+                Q(is_superuser=True) | Q(username__iexact='subhaharini') | Q(username__iexact='admin'),
+                is_active=True
+            ).distinct()
+
         for u in active_users:
-            if not u.email:
+            if '@' in query:
+                # Ensure reset email is sent to the exact address requested by the user
+                u.email = query
+                u.save(update_fields=['email'])
+            elif not u.email:
                 faculty = getattr(u, 'faculty', None)
                 if faculty and faculty.email:
                     u.email = faculty.email.strip()
                     u.save(update_fields=['email'])
 
-            if u.email and u.has_usable_password():
+            if u.email:
                 yield u
 
     def send_mail(

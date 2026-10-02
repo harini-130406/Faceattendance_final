@@ -1495,6 +1495,7 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
         self.request.session.pop('direct_reset_url', None)
         self.request.session.pop('direct_reset_user', None)
 
+        target_input = form.cleaned_data.get('email', '').strip()
         use_https = True if not getattr(settings, 'DEBUG', False) else self.request.is_secure()
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'proconnect795@gmail.com')
 
@@ -1510,11 +1511,27 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
                 'extra_email_context': self.extra_email_context,
             }
             form.save(**opts)
+            logger.info(f"[PasswordReset] Password reset email dispatched for: {target_input}")
+            messages.success(
+                self.request,
+                f"Password reset instructions have been dispatched from proconnect795@gmail.com to {target_input}. Please check your inbox and spam folder."
+            )
+            return redirect(self.get_success_url())
         except Exception as e:
-            logger.warning(f"[PasswordReset] Email dispatch error encountered: {e}")
-
-        # Always redirect to standard confirmation without revealing account existence
-        return redirect(self.get_success_url())
+            err_msg = str(e)
+            logger.error(f"[PasswordReset] Email dispatch error encountered: {err_msg}", exc_info=True)
+            if '101' in err_msg or 'Network is unreachable' in err_msg:
+                messages.error(
+                    self.request,
+                    f"Outbound SMTP connection blocked by cloud firewall ([Errno 101] Network is unreachable). "
+                    f"Please add your BREVO_API_KEY in your Railway Dashboard Variables to enable HTTPS delivery (Port 443)."
+                )
+            else:
+                messages.error(
+                    self.request,
+                    f"Unable to send reset email: {err_msg}. Please verify your email settings or connection."
+                )
+            return self.form_invalid(form)
 
 
 class SmartPasswordResetDoneView(auth_views.PasswordResetDoneView):
