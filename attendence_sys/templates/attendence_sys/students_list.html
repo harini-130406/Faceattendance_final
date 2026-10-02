@@ -23,6 +23,17 @@
     </div>
 </div>
 
+<!-- Centralized Institutional Registry Banner -->
+<div class="alert alert-info py-2 px-3 mb-4 rounded d-flex align-items-center" style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 12px;">
+    <div class="mr-3" style="width: 38px; height: 38px; border-radius: 10px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0;">
+        <i class="fas fa-network-wired"></i>
+    </div>
+    <div class="small">
+        <strong class="text-success font-weight-bold">Centralized Student Registry:</strong>
+        <span class="text-muted">All {{ total_count }} enrolled students below are stored in the shared institutional database. Any student enrolled by any faculty account is immediately visible and accessible to all other faculty members.</span>
+    </div>
+</div>
+
 <!-- Search & Filter Card -->
 <div class="card-modern mb-4">
     <div class="card-body-modern py-3">
@@ -113,6 +124,7 @@
                             <th>Student Name</th>
                             <th>Department & Class</th>
                             <th>Contact Info</th>
+                            <th>Enrolled By</th>
                             <th class="text-center">Biometrics</th>
                             <th class="text-right" style="width: 170px;">Manage</th>
                         </tr>
@@ -124,7 +136,7 @@
                                 <input type="checkbox" name="selected_students" value="{{ s.id }}" class="student-select-cb" onclick="updateSelection()" style="cursor: pointer;">
                             </td>
                             <td>
-                                <img src="{{ s.get_primary_photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
+                                <img src="{{ s.get_primary_photo_url }}" alt="avatar" class="student-avatar" onerror="this.onerror=null; this.src='/static/images/default_avatar.png';">
                             </td>
                             <td class="font-weight-bold text-dark">
                                 <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">
@@ -144,6 +156,11 @@
                                     {% if s.phone %}<i class="fas fa-phone mr-1 text-success"></i> {{ s.phone }}{% endif %}
                                     {% if not s.email and not s.phone %}<span class="text-muted">-</span>{% endif %}
                                 </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-light border text-muted" style="font-size: 0.8rem; font-weight: 600;">
+                                    <i class="fas fa-user-tie text-primary mr-1"></i> {{ s.enrolled_by_name|default:"Institutional Registry" }}
+                                </span>
                             </td>
                             <td class="text-center">
                                 {% if s.profile_pic or s.photos.exists %}

@@ -13,6 +13,11 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.contrib.auth.tokens import default_token_generator
+from django.urls import reverse
 from django.db import IntegrityError
 from django.db.models import Count, Q
 
@@ -214,6 +219,13 @@ def takeAttendancePage(request):
                 messages.info(request, "Manual attendance mode loaded. Toggle student statuses and click Save.")
                 return render(request, 'attendence_sys/take_attendance.html', context)
 
+            try:
+                tolerance = float(request.POST.get('tolerance', 0.48))
+            except (ValueError, TypeError):
+                tolerance = 0.48
+
+            context['selected_tolerance'] = str(tolerance)
+
             # Process multiple or single classroom images with AI
             try:
                 detection_result = process_multiple_classroom_images(
@@ -221,7 +233,7 @@ def takeAttendancePage(request):
                     branch=branch,
                     year=year,
                     section=section,
-                    tolerance=0.55
+                    tolerance=tolerance
                 )
 
                 # Save session image if uploaded
@@ -471,6 +483,15 @@ def editAttendance(request):
     return render(request, 'attendence_sys/attendance_edit.html', context)
 
 
+def clean_numeric_str(val):
+    if not val:
+        return ""
+    s = str(val).strip()
+    if s.endswith('.0') and s[:-2].replace('-', '').replace('+', '').isdigit():
+        return s[:-2]
+    return s
+
+
 @login_required(login_url='login')
 def addStudentPage(request):
     """
@@ -484,20 +505,23 @@ def addStudentPage(request):
         form_type = request.POST.get('form_type', 'single')
 
         if form_type == 'single':
-            reg_id = request.POST.get('registration_id', '').strip()
+            reg_id = clean_numeric_str(request.POST.get('registration_id', ''))
             fname = request.POST.get('firstname', '').strip()
             lname = request.POST.get('lastname', '').strip()
             branch = request.POST.get('branch', 'CSE').strip()
             year = request.POST.get('year', '1').strip()
             section = request.POST.get('section', 'A').strip().upper()
             email = request.POST.get('email', '').strip()
-            phone = request.POST.get('phone', '').strip()
+            phone = clean_numeric_str(request.POST.get('phone', ''))
             drive_link = request.POST.get('drive_link', '').strip()
             profile_pic_file = request.FILES.get('profile_pic')
 
             if not reg_id:
                 messages.error(request, "Registration ID / Register Number is required.")
                 return render(request, 'attendence_sys/add_student.html', context)
+
+            faculty_obj = getattr(request.user, 'faculty', None)
+            faculty_name = str(faculty_obj) if faculty_obj else request.user.username
 
             # Check if exists
             student, created = Student.objects.get_or_create(
@@ -513,6 +537,8 @@ def addStudentPage(request):
                     'section': section,
                     'email': email,
                     'phone': phone,
+                    'enrolled_by': request.user,
+                    'enrolled_by_name': faculty_name,
                 }
             )
 
@@ -526,6 +552,9 @@ def addStudentPage(request):
                 student.section = section
                 if email: student.email = email
                 if phone: student.phone = phone
+                if not student.enrolled_by:
+                    student.enrolled_by = request.user
+                    student.enrolled_by_name = faculty_name
                 student.save()
 
             # Handle photo: Priority 1: Uploaded file, Priority 2: Google Drive link
@@ -537,16 +566,16 @@ def addStudentPage(request):
                     get_student_face_encoding(student)
                 except Exception:
                     pass
-                messages.success(request, f"Student {student.name or reg_id} registered with uploaded photo.")
+                messages.success(request, f"Student {student.name or reg_id} registered centrally and available to all faculty.")
 
             elif drive_link:
                 ok, msg = attach_drive_photo_to_student(student, drive_link, is_primary=True)
                 if ok:
-                    messages.success(request, f"Student {student.name or reg_id} registered and Google Drive photo downloaded successfully.")
+                    messages.success(request, f"Student {student.name or reg_id} registered centrally with Google Drive photo.")
                 else:
                     messages.warning(request, f"Student registered, but photo could not be fetched from Drive link: {msg}")
             else:
-                messages.success(request, f"Student {student.name or reg_id} registered successfully (no photo provided).")
+                messages.success(request, f"Student {student.name or reg_id} registered centrally in institutional roster.")
 
             return redirect('add_student')
 
@@ -561,16 +590,28 @@ def addStudentPage(request):
                 messages.error(request, "Please choose an Excel / CSV file or enter a Google Sheet URL.")
                 return render(request, 'attendence_sys/add_student.html', context)
 
+            faculty_obj = getattr(request.user, 'faculty', None)
+            faculty_name = str(faculty_obj) if faculty_obj else request.user.username
+
+            default_year = request.POST.get('default_year', '3').strip()
+            default_branch = request.POST.get('default_branch', 'CSE').strip()
+            default_section = request.POST.get('default_section', 'A').strip().upper()
+
             try:
                 stats = sync_google_sheet(
                     source,
                     download_photos=True,
-                    drive_folder_url=drive_folder if drive_folder else None
+                    drive_folder_url=drive_folder if drive_folder else None,
+                    enrolled_by=request.user,
+                    enrolled_by_name=faculty_name,
+                    default_year=default_year,
+                    default_branch=default_branch,
+                    default_section=default_section
                 )
                 context['bulk_stats'] = stats
                 messages.success(
                     request,
-                    f"Bulk import completed! Rows: {stats['total_rows']}, Created: {stats['created']}, Updated: {stats['updated']}, Photos processed: {stats['photos_processed']}, Errors: {stats['errors']}."
+                    f"Centralized bulk import completed! Rows: {stats['total_rows']}, Created: {stats['created']}, Updated: {stats['updated']}, Photos processed: {stats['photos_processed']}. All students are now available to all faculty accounts."
                 )
             except Exception as e:
                 messages.error(request, f"Bulk import failed: {e}")
@@ -886,14 +927,14 @@ def logoutUser(request):
 def editStudent(request, student_id):
     student = get_object_or_404(Student, id=student_id)
     if request.method == 'POST':
-        reg_id = request.POST.get('registration_id', '').strip()
+        reg_id = clean_numeric_str(request.POST.get('registration_id', ''))
         fname = request.POST.get('firstname', '').strip()
         lname = request.POST.get('lastname', '').strip()
         branch = request.POST.get('branch', '').strip()
         year = request.POST.get('year', '').strip()
         section = request.POST.get('section', '').strip().upper()
         email = request.POST.get('email', '').strip()
-        phone = request.POST.get('phone', '').strip()
+        phone = clean_numeric_str(request.POST.get('phone', ''))
         drive_link = request.POST.get('drive_link', '').strip()
         profile_pic_file = request.FILES.get('profile_pic')
 
@@ -1153,9 +1194,9 @@ def liveScanFrame(request):
     year = str(data.get('year', '1')).strip()
     section = data.get('section', 'A').strip().upper()
     try:
-        tolerance = float(data.get('tolerance', 0.55))
+        tolerance = float(data.get('tolerance', 0.48))
     except (ValueError, TypeError):
-        tolerance = 0.55
+        tolerance = 0.48
 
     # Decode base64 image data
     if ',' in image_data:
@@ -1368,75 +1409,72 @@ def liveSaveAttendance(request):
     })
 
 
-def passwordResetPage(request):
+from django.contrib.auth import views as auth_views
+from django.urls import reverse_lazy
+from .forms import SmartPasswordResetForm
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class SmartPasswordResetView(auth_views.PasswordResetView):
     """
-    Self-service password reset.
-    Verifies user identity by username and registered email address,
-    and sets a new secure password.
+    Standard Django PasswordResetView utilizing SmartPasswordResetForm.
+    Dispatches cryptographic single-use reset links from proconnect795@gmail.com
+    strictly to the user's original verified registered email.
     """
-    if request.user.is_authenticated:
-        return redirect('home')
+    template_name = 'attendence_sys/password_reset.html'
+    email_template_name = 'attendence_sys/password_reset_email.txt'
+    html_email_template_name = 'attendence_sys/password_reset_email.html'
+    subject_template_name = 'attendence_sys/password_reset_subject.txt'
+    form_class = SmartPasswordResetForm
+    success_url = reverse_lazy('password_reset_done')
 
-    context = {}
+    def form_valid(self, form):
+        try:
+            return super().form_valid(form)
+        except Exception as e:
+            logger.warning(f"[PasswordReset] SMTP dispatch failed: {e}")
+            if settings.DEBUG:
+                messages.warning(
+                    self.request,
+                    f"Notice: SMTP dispatch from {getattr(settings, 'DEFAULT_FROM_EMAIL', 'proconnect795@gmail.com')} encountered: {e}. Check your .env configuration."
+                )
+                return redirect(self.get_success_url())
+            raise
 
-    if request.method == 'POST':
-        username = request.POST.get('username', '').strip()
-        email = request.POST.get('email', '').strip().lower()
-        new_password = request.POST.get('new_password', '')
-        confirm_password = request.POST.get('confirm_password', '')
 
-        context['entered_username'] = username
-        context['entered_email'] = email
+class SmartPasswordResetDoneView(auth_views.PasswordResetDoneView):
+    """
+    Generic confirmation view protecting against user enumeration.
+    """
+    template_name = 'attendence_sys/password_reset_done.html'
 
-        if not username:
-            messages.error(request, "Please enter your username.")
-            return render(request, 'attendence_sys/password_reset.html', context)
 
-        clean_user = re.sub(r'\s+', '_', username)
-        user = User.objects.filter(
-            Q(username__iexact=username) |
-            Q(username__iexact=clean_user) |
-            Q(email__iexact=username) |
-            (Q(email__iexact=email) if email else Q()) |
-            Q(first_name__iexact=username)
-        ).first()
+class SmartPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
+    """
+    Standard Django PasswordResetConfirmView validating the single-use cryptographic token
+    and enforcing configured password validators via SetPasswordForm.
+    """
+    template_name = 'attendence_sys/password_reset_confirm.html'
+    success_url = reverse_lazy('password_reset_complete')
 
-        if not user:
-            context['user_not_found'] = True
-            messages.error(request, f"No user account found for username '{username}'.")
-            return render(request, 'attendence_sys/password_reset.html', context)
 
-        user_email = (user.email or '').strip().lower()
-        faculty_email = (getattr(getattr(user, 'faculty', None), 'email', '') or '').strip().lower()
-        has_registered_email = bool(user_email or faculty_email)
+class SmartPasswordResetCompleteView(auth_views.PasswordResetCompleteView):
+    """
+    Standard Django PasswordResetCompleteView confirming successful password update.
+    """
+    template_name = 'attendence_sys/password_reset_complete.html'
 
-        if has_registered_email:
-            if not email:
-                messages.error(request, "Please enter the registered email address associated with this account to verify identity.")
-                return render(request, 'attendence_sys/password_reset.html', context)
-            if email != user_email and email != faculty_email:
-                messages.error(request, "Verification failed: Email does not match the registered account email.")
-                return render(request, 'attendence_sys/password_reset.html', context)
 
-        if not new_password:
-            messages.error(request, "Please enter a new password.")
-            return render(request, 'attendence_sys/password_reset.html', context)
+# View bindings for URL routing
+passwordResetView = SmartPasswordResetView.as_view()
+passwordResetDoneView = SmartPasswordResetDoneView.as_view()
+passwordResetConfirmView = SmartPasswordResetConfirmView.as_view()
+passwordResetCompleteView = SmartPasswordResetCompleteView.as_view()
+passwordResetPage = passwordResetView
+passwordResetConfirmPage = passwordResetConfirmView
 
-        if len(new_password) < 6:
-            messages.error(request, "Password must be at least 6 characters long.")
-            return render(request, 'attendence_sys/password_reset.html', context)
-
-        if new_password != confirm_password:
-            messages.error(request, "New password and confirm password do not match.")
-            return render(request, 'attendence_sys/password_reset.html', context)
-
-        user.set_password(new_password)
-        user.save()
-
-        messages.success(request, f"Password for '{user.username}' was reset successfully! You can now log in.")
-        return redirect('login')
-
-    return render(request, 'attendence_sys/password_reset.html', context)
 
 
 @login_required(login_url='login')

@@ -6,7 +6,19 @@ urlpatterns = [
     path('login/', views.loginPage, name='login'),
     path('register/', views.registerPage, name='register'),
     path('logout/', views.logoutUser, name='logout'),
-    path('password-reset/', views.passwordResetPage, name='password_reset'),
+
+    # Password Reset (Standard Django Class-Based Auth Views)
+    path('password-reset/', views.passwordResetView, name='password_reset'),
+    path('password-reset/done/', views.passwordResetDoneView, name='password_reset_done'),
+    path('password-reset-confirm/<str:uidb64>/<str:token>/', views.passwordResetConfirmView, name='password_reset_confirm'),
+    path('password-reset-complete/', views.passwordResetCompleteView, name='password_reset_complete'),
+
+    # URL Aliases
+    path('forgot-password/', views.passwordResetView, name='forgot_password'),
+    path('forgot-password/sent/', views.passwordResetDoneView, name='forgot_password_sent'),
+    path('reset/<str:uidb64>/<str:token>/', views.passwordResetConfirmView, name='password_reset_confirm_alias'),
+    path('reset/complete/', views.passwordResetCompleteView, name='password_reset_complete_alias'),
+
     path('account/', views.facultyProfile, name='account'),
     path('account/change-password/', views.changePasswordView, name='change_password'),
 

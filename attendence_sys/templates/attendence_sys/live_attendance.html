@@ -856,7 +856,7 @@ function updateRosterUI() {
         item.className = 'd-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white';
         item.innerHTML = `
             <div class="d-flex align-items-center">
-                <img src="${s.photo_url}" class="rounded-circle mr-3" style="width: 38px; height: 38px; object-fit: cover; border: 1.5px solid ${isPresent ? '#10b981' : '#cbd5e1'};" onerror="this.src='/static/images/default_avatar.png'">
+                <img src="${s.photo_url}" class="rounded-circle mr-3" style="width: 38px; height: 38px; object-fit: cover; border: 1.5px solid ${isPresent ? '#10b981' : '#cbd5e1'};" onerror="this.onerror=null; this.src='/static/images/default_avatar.png';">
                 <div>
                     <div class="font-weight-bold text-dark small">${s.name}</div>
                     <div class="text-muted" style="font-size: 0.76rem;">${s.student_id} ${s.confidence > 0 ? '• ' + s.confidence + '% match' : ''}</div>
@@ -888,7 +888,7 @@ function addActivityCard(student) {
     card.className = 'present-student-card';
     card.innerHTML = `
         <div class="d-flex align-items-center">
-            <img src="${student.photo_url}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover; border: 2px solid #10b981;" onerror="this.src='/static/images/default_avatar.png'">
+            <img src="${student.photo_url}" class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover; border: 2px solid #10b981;" onerror="this.onerror=null; this.src='/static/images/default_avatar.png';">
             <div>
                 <div class="font-weight-bold text-dark">${student.name}</div>
                 <div class="text-muted small">${student.student_id} • <span class="badge badge-success px-2 py-0">${student.confidence}% Conf</span></div>

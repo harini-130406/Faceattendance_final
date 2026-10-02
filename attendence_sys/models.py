@@ -64,10 +64,38 @@ class Student(models.Model):
     email = models.EmailField(max_length=200, null=True, blank=True)
     phone = models.CharField(max_length=200, null=True, blank=True)
     profile_pic = models.ImageField(upload_to=student_directory_path, null=True, blank=True)
+    enrolled_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='enrolled_students')
+    enrolled_by_name = models.CharField(max_length=200, null=True, blank=True, default='Institutional Registry')
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     def save(self, *args, **kwargs):
+        def _clean_numeric(v):
+            if not v:
+                return v
+            s = str(v).strip()
+            if s.endswith('.0') and s[:-2].replace('-', '').replace('+', '').isdigit():
+                return s[:-2]
+            return s
+
+        if self.register_number:
+            self.register_number = _clean_numeric(self.register_number)
+        if self.registration_id:
+            self.registration_id = _clean_numeric(self.registration_id)
+        if self.phone:
+            self.phone = _clean_numeric(self.phone)
+
+        if self.year:
+            s_yr = str(self.year).strip().lower()
+            if any(k in s_yr for k in ['4th', 'four', 'yr 4', 'year 4', 'iv', '4']):
+                self.year = '4'
+            elif any(k in s_yr for k in ['3rd', '3 rd', '3_rd', 'third', 'yr 3', 'year 3', 'iii', '3']):
+                self.year = '3'
+            elif any(k in s_yr for k in ['2nd', '2 nd', 'second', 'yr 2', 'year 2', 'ii', '2']):
+                self.year = '2'
+            elif any(k in s_yr for k in ['1st', '1 st', 'first', 'yr 1', 'year 1', 'i', '1']):
+                self.year = '1'
+
         if self.register_number and not self.registration_id:
             self.registration_id = self.register_number
         elif self.registration_id and not self.register_number:
@@ -160,6 +188,15 @@ class Attendence(models.Model):
     status = models.CharField(max_length=200, null=True, default='Absent')
     confidence = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.Student_ID:
+            s = str(self.Student_ID).strip()
+            if s.endswith('.0') and s[:-2].replace('-', '').replace('+', '').isdigit():
+                self.Student_ID = s[:-2]
+            else:
+                self.Student_ID = s
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return str(str(self.Student_ID) + "_" + str(self.date) + "_" + str(self.period))

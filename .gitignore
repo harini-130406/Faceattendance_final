@@ -7,11 +7,30 @@ __pycache__/
 env/
 venv/
 ENV/
+.env
+.env.*
+!.env.example
 *.env
 dlib_legacy/
 
-# SQLite
+# SQLite & Database Dumps
+db.sqlite3
+*.sqlite3
 db.sqlite3-journal
+db_backup*.sqlite3
+*.dump
+*.sql
+datadump.json
+
+# Static & Media Collection
+staticfiles/
+
+# Secrets & Credentials
+google_credentials.json
+*.jks
+*.keystore
+key.properties
+*.bak
 
 # IDEs
 .vscode/

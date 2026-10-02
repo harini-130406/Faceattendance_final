@@ -13,7 +13,7 @@ DEFAULT_HEADER_PATTERNS = {
     'first_name': [r'first.*name', r'fname'],
     'last_name': [r'last.*name', r'lname', r'surname'],
     'department': [r'dept', r'department', r'branch', r'stream'],
-    'year': [r'year', r'yr'],
+    'year': [r'year', r'yr', r'class', r'batch'],
     'section': [r'section', r'sec'],
     'email': [r'email', r'mail'],
     'phone': [r'phone', r'mobile', r'contact'],
@@ -21,6 +21,39 @@ DEFAULT_HEADER_PATTERNS = {
     'photo_2': [r'photo.*2', r'image.*2'],
     'photo_3': [r'photo.*3', r'image.*3'],
 }
+
+def normalize_academic_year(val, fallback='3'):
+    """
+    Robustly converts year variations ('3 rd yr', '3rd Year', '3rd', 'III', '3.0', 'Year 3')
+    into standard Django model choice strings: '1', '2', '3', or '4'.
+    """
+    if not val:
+        return str(fallback) if fallback else '3'
+    s = str(val).strip().lower()
+    if s.endswith('.0'):
+        s = s[:-2].strip()
+
+    # Direct 4th year check
+    if any(k in s for k in ['4th', 'four', 'yr 4', 'year 4', 'iv']):
+        return '4'
+    # Direct 3rd year check (handles '3 rd yr', '3rd yr', '3rd year', 'iii', 'third', 'yr 3', etc.)
+    if any(k in s for k in ['3rd', '3 rd', '3_rd', 'third', 'yr 3', 'year 3', 'iii']):
+        return '3'
+    # Direct 2nd year check
+    if any(k in s for k in ['2nd', '2 nd', 'second', 'yr 2', 'year 2', 'ii']):
+        return '2'
+    # Direct 1st year check
+    if any(k in s for k in ['1st', '1 st', 'first', 'yr 1', 'year 1']):
+        return '1'
+
+    for digit in ['4', '3', '2', '1']:
+        if digit in s:
+            return digit
+
+    if s == 'i':
+        return '1'
+
+    return str(fallback) if fallback else '3'
 
 def extract_spreadsheet_id(sheet_url_or_id):
     if not sheet_url_or_id:
@@ -91,7 +124,7 @@ def fetch_sheet_csv(sheet_url_or_id):
     raise RuntimeError("Failed to fetch Google Sheet data. If this is a local Excel/CSV file, pass the file path directly. If it is a Google Sheet URL, ensure the sharing permission is set to 'Anyone with the link can view'.")
 
 
-def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, drive_folder_url=None):
+def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, drive_folder_url=None, enrolled_by=None, enrolled_by_name=None, default_year=None, default_branch=None, default_section=None):
     """
     Synchronizes Django database with Student Registration data.
     sheet_source can be:
@@ -188,7 +221,11 @@ def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, d
     def get_val(row, idx):
         if idx is not None and 0 <= idx < len(row):
             val = str(row[idx]).strip()
-            return val if val != 'None' else ""
+            if val == 'None':
+                return ""
+            if val.endswith('.0') and val[:-2].replace('-', '').replace('+', '').isdigit():
+                return val[:-2]
+            return val
         return ""
 
     for i, row in enumerate(data_rows, start=1):
@@ -205,9 +242,12 @@ def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, d
         fname = get_val(row, fname_idx)
         lname = get_val(row, lname_idx)
 
-        department = get_val(row, dept_idx).upper()
-        year = get_val(row, year_idx)
-        section = get_val(row, sec_idx).upper()
+        raw_dept = get_val(row, dept_idx)
+        department = (raw_dept or default_branch or 'CSE').upper()
+        raw_year = get_val(row, year_idx)
+        year = normalize_academic_year(raw_year, fallback=default_year or '3')
+        raw_sec = get_val(row, sec_idx)
+        section = (raw_sec or default_section or 'A').upper()
         email = get_val(row, email_idx)
         phone = get_val(row, phone_idx)
 
@@ -215,9 +255,15 @@ def sync_google_sheet(sheet_source, custom_mapping=None, download_photos=True, d
         if created:
             stats['created'] += 1
             stats['logs'].append(f"[OK] Student {reg_num} created")
+            if enrolled_by:
+                student.enrolled_by = enrolled_by
+            student.enrolled_by_name = enrolled_by_name or 'Institutional Registry'
         else:
             stats['updated'] += 1
             stats['logs'].append(f"[OK] Student {reg_num} updated")
+            if not student.enrolled_by and enrolled_by:
+                student.enrolled_by = enrolled_by
+                student.enrolled_by_name = enrolled_by_name or student.enrolled_by_name
 
         student.registration_id = reg_num
         if name:

@@ -188,7 +188,7 @@
                 </div>
 
                 <div class="col-md-2 col-sm-6 mb-3">
-                    <label class="font-weight-bold text-dark small"><i class="fas fa-clock text-primary mr-1"></i> Class Period</label>
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-clock text-primary mr-1"></i> Period</label>
                     <select name="period" class="form-control form-control-modern" required>
                         {% for p in periods %}
                             <option value="{{ p }}" {% if selected_period == p %}selected{% endif %}>Period {{ p }}</option>
@@ -196,9 +196,20 @@
                     </select>
                 </div>
 
-                <div class="col-md-3 col-sm-12 mb-3">
-                    <label class="font-weight-bold text-dark small"><i class="fas fa-calendar-day text-primary mr-1"></i> Attendance Date</label>
+                <div class="col-md-2 col-sm-6 mb-3">
+                    <label class="font-weight-bold text-dark small"><i class="fas fa-calendar-day text-primary mr-1"></i> Date</label>
                     <input type="date" name="date" class="form-control form-control-modern" value="{{ selected_date|default:today_str }}" required>
+                </div>
+
+                <div class="col-md-2 col-sm-6 mb-3">
+                    <label class="font-weight-bold text-dark small" title="Strict eliminates false positives; Balanced is standard; Lenient is for dark/distant shots">
+                        <i class="fas fa-sliders text-primary mr-1"></i> Sensitivity
+                    </label>
+                    <select name="tolerance" class="form-control form-control-modern" id="toleranceSelect">
+                        <option value="0.45" {% if selected_tolerance == '0.45' %}selected{% endif %}>Strict (0.45 - Zero False Positives)</option>
+                        <option value="0.48" {% if not selected_tolerance or selected_tolerance == '0.48' %}selected{% endif %}>Balanced (0.48 - Recommended)</option>
+                        <option value="0.52" {% if selected_tolerance == '0.52' %}selected{% endif %}>Lenient (0.52 - Far / Low Light)</option>
+                    </select>
                 </div>
             </div>
 
@@ -491,7 +502,7 @@
                             <input type="hidden" name="confidence_{{ row.student.register_number|default:row.student.registration_id }}" value="{{ row.confidence|default:'0' }}">
 
                             <td>
-                                <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
+                                <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.onerror=null; this.src='/static/images/default_avatar.png';">
                             </td>
                             <td class="font-weight-bold text-dark">
                                 <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">
@@ -507,13 +518,18 @@
                                         <span class="text-success font-weight-bold small">
                                             <i class="fas fa-check-circle mr-1"></i> Recognized Present
                                         </span>
+                                        {% if row.dual_confirmed %}
+                                            <span class="badge badge-success px-2 py-1 small font-weight-bold" style="background: #059669;">
+                                                <i class="fas fa-check-double mr-1"></i> Dual-Photo Verified
+                                            </span>
+                                        {% endif %}
                                         {% if row.detected_in %}
                                             <span class="badge badge-light border text-dark small">
                                                 <i class="fas fa-camera text-primary mr-1"></i>Found in: {{ row.detected_in }}
                                             </span>
                                         {% endif %}
                                         {% if row.confidence %}
-                                            <span class="text-muted small">({{ row.confidence }}% match)</span>
+                                            <span class="badge badge-primary px-2 py-1 small font-weight-bold">{{ row.confidence }}% match</span>
                                         {% endif %}
                                     </div>
                                 {% else %}
@@ -590,10 +606,55 @@ let currentSelectedFiles = [];
 
 function handleMultipleFileSelect(input) {
     if (input.files && input.files.length > 0) {
-        currentSelectedFiles = Array.from(input.files);
+        const newFiles = Array.from(input.files);
+        // Append new files without duplicates (by name + size)
+        newFiles.forEach(nf => {
+            const exists = currentSelectedFiles.some(f => f.name === nf.name && f.size === nf.size);
+            if (!exists) {
+                currentSelectedFiles.push(nf);
+            }
+        });
+        updateFileInputFromList();
         renderSelectedThumbnails();
     }
 }
+
+// Drag & drop support for dropzone
+document.addEventListener('DOMContentLoaded', function() {
+    const dropzone = document.querySelector('.upload-dropzone');
+    if (dropzone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.style.borderColor = '#0284c7';
+                dropzone.style.backgroundColor = '#e0f2fe';
+            }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.style.borderColor = '#38bdf8';
+                dropzone.style.backgroundColor = '#f0f9ff';
+            }, false);
+        });
+        dropzone.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files.length > 0) {
+                const newFiles = Array.from(dt.files).filter(f => f.type.startsWith('image/'));
+                newFiles.forEach(nf => {
+                    const exists = currentSelectedFiles.some(f => f.name === nf.name && f.size === nf.size);
+                    if (!exists) {
+                        currentSelectedFiles.push(nf);
+                    }
+                });
+                updateFileInputFromList();
+                renderSelectedThumbnails();
+            }
+        }, false);
+    }
+});
 
 function renderSelectedThumbnails() {
     const dropzoneContent = document.getElementById('dropzoneContent');

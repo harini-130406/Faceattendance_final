@@ -106,17 +106,23 @@ def _decode_image_source(source):
     return img_bgr
 
 
-def process_multiple_classroom_images(classroom_image_sources, branch, year, section, tolerance=0.55):
+def process_multiple_classroom_images(classroom_image_sources, branch, year, section, tolerance=0.48):
     """
-    Scans and detects faces across one or MULTIPLE classroom photos with high-speed optimization:
+    Scans and detects faces across one or MULTIPLE classroom photos with calibrated accuracy:
     1. Downscales very large images to optimal working resolution (max 1000px).
     2. Uses fast 5-point landmark alignment & dlib face chips to compute descriptors in pure C++ batch.
     3. Bulk-prefetches student embeddings in a single DB query with in-memory caching.
-    4. Vectorized matrix Euclidean matching for sub-millisecond student recognition.
-    5. Returns annotated preview cards and consolidated attendance roster.
+    4. Optimal 1-to-1 bipartite Euclidean matching per photograph: prevents multiple faces claiming the same student.
+    5. Calibrated tolerance (default 0.48) to eliminate false positives in large group photos.
+    6. Multi-photo union: detects students across Photo #1, Photo #2, etc., and marks as Present for the session.
     """
     import dlib
     from face_recognition.api import _raw_face_landmarks, face_encoder
+
+    try:
+        tolerance = float(tolerance)
+    except (ValueError, TypeError):
+        tolerance = 0.48
 
     if not isinstance(classroom_image_sources, (list, tuple)):
         classroom_image_sources = [classroom_image_sources]
@@ -192,17 +198,19 @@ def process_multiple_classroom_images(classroom_image_sources, branch, year, sec
         if img_bgr is None:
             continue
 
-        # Fast resize for optimal detection speed (max 1000px is crisp and 3x faster than 1600px+)
+        # Optimal working resolution (1400px preserves face details for back rows while maintaining fast detection)
         h, w = img_bgr.shape[:2]
-        max_dim = 1000
+        max_dim = 1400
         if max(h, w) > max_dim:
             scale = max_dim / float(max(h, w))
             img_bgr = cv2.resize(img_bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-        # Fast HOG detection
-        detected_locations = face_recognition.face_locations(img_rgb, model='hog')
+        # HOG face detection with upsampling=1 to capture smaller and further-back classroom faces
+        detected_locations = face_recognition.face_locations(img_rgb, model='hog', number_of_times_to_upsample=1)
+        # Filter out sub-20px noise artifacts
+        detected_locations = [loc for loc in detected_locations if (loc[2] - loc[0]) >= 20 and (loc[1] - loc[3]) >= 20]
         total_detected_faces += len(detected_locations)
 
         # Fast 5-point landmark alignment & 150x150 chip extraction
@@ -234,30 +242,59 @@ def process_multiple_classroom_images(classroom_image_sources, branch, year, sec
     else:
         all_face_encodings = []
 
-    # 4. Phase 3: Fast Vectorized Matching against Enrolled Students
-    if known_encodings_matrix is not None and len(known_encodings_matrix) > 0 and all_face_encodings:
-        for chip_idx, face_enc in enumerate(all_face_encodings):
-            p_idx, f_idx = chip_to_photo_face[chip_idx]
-            photo_info = photos_data[p_idx]
+    # 4. Phase 3: Calibrated 1-to-1 Bipartite Matching with Margin Filtering
+    photo_encodings_map = {p_idx: {} for p_idx in range(len(photos_data))}
+    for chip_idx, face_enc in enumerate(all_face_encodings):
+        p_idx, f_idx = chip_to_photo_face[chip_idx]
+        photo_encodings_map[p_idx][f_idx] = face_enc
 
-            # Vectorized Euclidean distance across all enrolled students
-            dists = np.linalg.norm(known_encodings_matrix - face_enc, axis=1)
-            best_match_idx = int(np.argmin(dists))
-            min_dist = float(dists[best_match_idx])
+    num_photos = len(photos_data)
+    if known_encodings_matrix is not None and len(known_encodings_matrix) > 0:
+        for p_idx, photo_info in enumerate(photos_data):
+            f_encs_dict = photo_encodings_map.get(p_idx, {})
+            if not f_encs_dict:
+                continue
 
-            if min_dist <= tolerance:
-                matched_student_id = known_student_ids[best_match_idx]
+            # Find candidate matches below tolerance, verifying distinctiveness
+            candidate_pairs = []
+            for f_idx, face_enc in f_encs_dict.items():
+                dists = np.linalg.norm(known_encodings_matrix - face_enc, axis=1)
+                sorted_idx = np.argsort(dists)
+                best_idx = sorted_idx[0]
+                best_d = float(dists[best_idx])
+                second_d = float(dists[sorted_idx[1]]) if len(sorted_idx) > 1 else 1.0
+                margin = second_d - best_d
+
+                # Stricter threshold if ambiguous between two enrolled students
+                effective_tolerance = tolerance if margin >= 0.015 else (tolerance - 0.02)
+
+                if best_d <= effective_tolerance:
+                    candidate_pairs.append((f_idx, best_idx, best_d, margin))
+
+            # Sort candidate pairs by distance ascending (closest match gets first priority)
+            candidate_pairs.sort(key=lambda x: x[2])
+
+            assigned_faces = set()
+            assigned_students = set()
+
+            for f_idx, s_arr_idx, d, margin in candidate_pairs:
+                if f_idx in assigned_faces or s_arr_idx in assigned_students:
+                    continue
+
+                matched_student_id = known_student_ids[s_arr_idx]
                 student_meta = student_encodings_map[matched_student_id]
-                conf = round(max(0.0, (1.0 - min_dist) * 100), 1)
+                conf = round(max(0.0, (1.0 - d) * 100), 1)
 
-                # Assign best match to this face if unassigned or closer
-                if f_idx not in photo_info['face_matches'] or min_dist < photo_info['face_matches'][f_idx]['dist']:
-                    photo_info['face_matches'][f_idx] = {
-                        'student_id': matched_student_id,
-                        'name': student_meta['name'],
-                        'dist': min_dist,
-                        'conf': conf,
-                    }
+                assigned_faces.add(f_idx)
+                assigned_students.add(s_arr_idx)
+
+                photo_info['face_matches'][f_idx] = {
+                    'student_id': matched_student_id,
+                    'name': student_meta['name'],
+                    'dist': d,
+                    'conf': conf,
+                    'margin': margin,
+                }
 
     # Aggregate presence across all photos and annotate images
     annotated_images = []
@@ -316,24 +353,35 @@ def process_multiple_classroom_images(classroom_image_sources, branch, year, sec
             'image_b64': annotated_b64,
         })
 
-    # 5. Build final roster with detection results
+    # 5. Build final roster with multi-photo accuracy boosting
     student_results = []
     for student in students:
         s_data = student_encodings_map[student.id]
         m_info = overall_matches[student.id]
         is_present = m_info['matched']
+        photos_seen = len(m_info['detected_photos'])
 
         if is_present and m_info['confidences']:
-            best_conf = max(m_info['confidences'])
+            base_conf = max(m_info['confidences'])
+            if photos_seen >= 2:
+                # Multi-photo consensus bonus: reinforce confidence by +5%
+                final_conf = min(99.0, round(base_conf + 5.0, 1))
+                dual_confirmed = True
+            else:
+                final_conf = base_conf
+                dual_confirmed = False
             detected_str = ", ".join(m_info['detected_photos'])
         else:
-            best_conf = 0.0
+            final_conf = 0.0
+            dual_confirmed = False
             detected_str = None
 
         student_results.append({
             'student': student,
             'status': 'Present' if is_present else 'Absent',
-            'confidence': best_conf,
+            'confidence': final_conf,
+            'dual_confirmed': dual_confirmed,
+            'photos_seen_count': photos_seen,
             'detected_in': detected_str,
             'detected_photos_list': m_info['detected_photos'],
             'has_photo': s_data['has_photo'],
@@ -357,7 +405,7 @@ def process_multiple_classroom_images(classroom_image_sources, branch, year, sec
     }
 
 
-def process_classroom_image(classroom_image_source, branch, year, section, tolerance=0.55):
+def process_classroom_image(classroom_image_source, branch, year, section, tolerance=0.48):
     """
     Backwards-compatible wrapper: calls process_multiple_classroom_images with a single source.
     """

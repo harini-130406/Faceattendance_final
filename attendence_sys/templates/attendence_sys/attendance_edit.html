@@ -174,7 +174,7 @@
                             <input type="hidden" name="status_{{ row.student.register_number|default:row.student.registration_id }}" id="status_input_{{ row.student.register_number|default:row.student.registration_id }}" value="{{ row.status }}">
 
                             <td>
-                                <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.src='/static/images/default_avatar.png'">
+                                <img src="{{ row.photo_url }}" alt="avatar" class="student-avatar" onerror="this.onerror=null; this.src='/static/images/default_avatar.png';">
                             </td>
                             <td class="font-weight-bold text-dark">
                                 <span class="badge badge-light border text-dark" style="font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;">

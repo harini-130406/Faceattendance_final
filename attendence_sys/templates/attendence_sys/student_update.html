@@ -3,6 +3,27 @@
 
 {% block title %}Update Student | Smart Face Attendance System{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Smooth, flicker-free inputs and cards */
+    .form-control-modern,
+    input.form-control-modern,
+    select.form-control-modern {
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+        transform: none !important;
+        backface-visibility: hidden !important;
+        -webkit-font-smoothing: subpixel-antialiased !important;
+    }
+    .card-modern {
+        transform: none !important;
+        transition: box-shadow 0.2s ease !important;
+    }
+    .card-modern:hover {
+        transform: none !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row align-items-center mb-4">
     <div class="col-md-8">
@@ -23,7 +44,7 @@
     <div class="col-lg-4 mb-4">
         <div class="card-modern text-center p-4">
             <div class="mb-3">
-                <img src="{{ student.get_primary_photo_url }}" alt="avatar" class="rounded-circle shadow-sm" style="width: 140px; height: 140px; object-fit: cover; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.12) !important;" onerror="this.src='/static/images/default_avatar.png'">
+                <img src="{{ student.get_primary_photo_url }}" alt="avatar" class="rounded-circle shadow-sm" style="width: 140px; height: 140px; object-fit: cover; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.12) !important;" onerror="this.onerror=null; this.src='/static/images/default_avatar.png';">
             </div>
             <h5 class="font-weight-bold text-dark mb-1">{{ student.name|default:student.registration_id|default:"Student" }}</h5>
             <div class="text-muted small mb-2">

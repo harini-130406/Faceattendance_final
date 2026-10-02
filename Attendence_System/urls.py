@@ -15,14 +15,19 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 
 from django.conf.urls.static import static
 from django.conf import settings
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('attendence_sys.urls'))
+def health_check(request):
+    return JsonResponse({'status': 'ok', 'service': 'smart-attendance-api'})
 
+urlpatterns = [
+    path('health/', health_check, name='health_check'),
+    path('admin/', admin.site.urls),
+    path('api/', include('attendence_sys.api_urls')),
+    path('', include('attendence_sys.urls')),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root = settings.MEDIA_ROOT)

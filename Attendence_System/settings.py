@@ -15,17 +15,34 @@ import os
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Load environment variables from .env file if present
+try:
+    from dotenv import load_dotenv
+    env_file = os.path.join(BASE_DIR, '.env')
+    if os.path.exists(env_file):
+        load_dotenv(env_file, override=True)
+    elif os.path.exists(os.path.join(BASE_DIR, '.env.example')):
+        load_dotenv(os.path.join(BASE_DIR, '.env.example'), override=True)
+except Exception:
+    pass
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '16)7t#^!ebgfc9a==7+5jp=z)y!it@2ke%6@0k@77&pc8!ft@r'
+SECRET_KEY = os.environ.get('SECRET_KEY', '16)7t#^!ebgfc9a==7+5jp=z)y!it@2ke%6@0k@77&pc8!ft@r')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS: comma-separated list in env (e.g. 'domain.com,api.domain.com')
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '')
+if allowed_hosts_env:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
+elif DEBUG:
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
 # Application definition
@@ -38,11 +55,18 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'attendence_sys',
+    # Third party apps
+    'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
     'django_filters',
+
+    # Local apps
+    'attendence_sys',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -51,6 +75,15 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Enable WhiteNoise for static file serving in production if available
+try:
+    import whitenoise
+    if 'whitenoise.middleware.WhiteNoiseMiddleware' not in MIDDLEWARE:
+        sec_idx = MIDDLEWARE.index('django.middleware.security.SecurityMiddleware')
+        MIDDLEWARE.insert(sec_idx + 1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+except ImportError:
+    pass
 
 ROOT_URLCONF = 'Attendence_System.urls'
 
@@ -75,19 +108,42 @@ WSGI_APPLICATION = 'Attendence_System.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
+# Defaults to SQLite locally; supports PostgreSQL via DATABASE_URL if configured
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+database_url = os.environ.get('DATABASE_URL', '')
+if database_url:
+    try:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.parse(database_url, conn_max_age=600, ssl_require=not DEBUG)
+        }
+    except ImportError:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+            }
+        }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
     }
-}
 
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 6,
+        }
+    },
+]
 
 
 # Internationalization
@@ -114,4 +170,82 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static')
 ]
 
+# Production static root for collectstatic
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Media root for uploaded profile pictures and classroom images
 MEDIA_ROOT = os.path.join(BASE_DIR, 'static/images')
+
+# File upload limits (allows high-resolution classroom multi-photo submissions up to 25MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
+
+# Email Configuration (Password Reset & Security Alerts)
+# Outgoing mail delivered from: proconnect795@gmail.com
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'proconnect795@gmail.com')
+# Automatically remove spaces from the Google App password if pasted as 4 blocks of 4 letters
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').replace(' ', '').strip()
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+SERVER_EMAIL = os.environ.get('SERVER_EMAIL', EMAIL_HOST_USER)
+PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
+
+# Django REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DATETIME_FORMAT': '%Y-%m-%d %H:%M:%S',
+}
+
+# CORS (Cross-Origin Resource Sharing) Configuration for Flutter
+# Development: allow localhost and emulator origins
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    cors_allowed = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+    if cors_allowed:
+        CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed.split(',') if origin.strip()]
+    else:
+        CORS_ALLOWED_ORIGINS = []
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Production security settings (activated only when DEBUG=False)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() in ('true', '1', 't')
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', 31536000))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+    if csrf_origins_env:
+        CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_env.split(',') if o.strip()]
