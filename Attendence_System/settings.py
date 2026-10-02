@@ -239,7 +239,7 @@ EMAIL_HOST_USER = email_host_user
 EMAIL_HOST_PASSWORD = email_host_password
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', email_host_user) or email_host_user
 SERVER_EMAIL = os.environ.get('SERVER_EMAIL', email_host_user) or email_host_user
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 12))  # 12-second socket timeout
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 5))  # 5-second socket timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
 

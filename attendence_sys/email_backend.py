@@ -30,7 +30,7 @@ class SmartFailoverEmailBackend(EmailBackend):
             use_tls=use_tls if use_tls is not None else getattr(settings, 'EMAIL_USE_TLS', True),
             fail_silently=fail_silently,
             use_ssl=use_ssl if use_ssl is not None else getattr(settings, 'EMAIL_USE_SSL', False),
-            timeout=timeout or getattr(settings, 'EMAIL_TIMEOUT', 10),
+            timeout=timeout or getattr(settings, 'EMAIL_TIMEOUT', 5),
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             **kwargs
