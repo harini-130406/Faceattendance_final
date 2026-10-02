@@ -1496,10 +1496,29 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
         self.request.session.pop('direct_reset_user', None)
 
         target_input = form.cleaned_data.get('email', '').strip()
+        use_https = True if not getattr(settings, 'DEBUG', False) else self.request.is_secure()
+
+        # Log recovery link in server console for administrative convenience if cloud firewalls block SMTP
+        try:
+            from django.utils.http import urlsafe_base64_encode
+            from django.utils.encoding import force_bytes
+            from django.contrib.auth.tokens import default_token_generator
+            proto = "https" if use_https else "http"
+            domain = self.request.get_host()
+            for user in form.get_users(target_input):
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+                rec_url = f"{proto}://{domain}{reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})}"
+                logger.warning("=================================================================")
+                logger.warning(f"[SECURE RECOVERY LINK FOR {user.username} ({user.email})]:")
+                logger.warning(f"  {rec_url}")
+                logger.warning("=================================================================")
+                break
+        except Exception as log_err:
+            logger.debug(f"[PasswordReset] Recovery log note: {log_err}")
+
         try:
             logger.info(f"[PasswordReset] Initiating password reset email dispatch for: {target_input}")
-            # Ensure https protocol is passed when in production / SSL proxy
-            use_https = True if not getattr(settings, 'DEBUG', False) else self.request.is_secure()
             opts = {
                 'use_https': use_https,
                 'token_generator': self.token_generator,
@@ -1511,18 +1530,26 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
                 'extra_email_context': self.extra_email_context,
             }
             form.save(**opts)
-            logger.info(f"[PasswordReset] Password reset email successfully delivered to SMTP server for {target_input}")
+            logger.info(f"[PasswordReset] Password reset email successfully delivered to mail server for {target_input}")
             messages.success(
                 self.request,
                 f"Password reset email has been dispatched to {target_input}. Please check your inbox and spam folder."
             )
             return redirect(self.get_success_url())
         except Exception as e:
+            err_str = str(e)
             logger.error(f"[PasswordReset] Email delivery failure for {target_input}: {e}", exc_info=True)
-            messages.error(
-                self.request,
-                f"Unable to send reset email ({e}). Please verify the email address or check your connection."
-            )
+            if '101' in err_str or 'Network is unreachable' in err_str:
+                messages.error(
+                    self.request,
+                    f"Railway cloud firewall blocked outgoing SMTP ports ([Errno 101] Network is unreachable). "
+                    f"To enable instant email delivery on Railway, add a free RESEND_API_KEY from https://resend.com into your Railway Environment Variables."
+                )
+            else:
+                messages.error(
+                    self.request,
+                    f"Unable to send reset email ({e}). Please verify the email address or check your connection."
+                )
             return self.form_invalid(form)
 
 

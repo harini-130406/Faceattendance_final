@@ -414,6 +414,38 @@
 
                     <!-- Tab 2: Full Class Roster with Manual Toggles -->
                     <div class="tab-pane fade" id="allRoster" role="tabpanel">
+                        <!-- Filter & Sort Toolbar like take attendance -->
+                        <div class="d-flex align-items-center justify-content-between flex-wrap p-2 mb-2 bg-light rounded border">
+                            <!-- Filter Buttons -->
+                            <div class="btn-group btn-group-sm mb-1 mb-sm-0" role="group">
+                                <button type="button" class="btn btn-outline-primary active font-weight-bold" id="liveFilterAllBtn" onclick="filterLiveRoster('all', this)" style="border-radius: 6px;">
+                                    All (<span id="liveBtnCountAll">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-outline-success font-weight-bold" id="liveFilterPresentBtn" onclick="filterLiveRoster('present', this)" style="border-radius: 6px;">
+                                    Present (<span id="liveBtnCountPresent">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-outline-danger font-weight-bold" id="liveFilterAbsentBtn" onclick="filterLiveRoster('absent', this)" style="border-radius: 6px;">
+                                    Absent (<span id="liveBtnCountAbsent">0</span>)
+                                </button>
+                            </div>
+
+                            <!-- Sort Buttons -->
+                            <div class="d-flex align-items-center flex-wrap" style="gap: 4px;">
+                                <span class="small font-weight-bold text-muted mr-1">
+                                    <i class="fas fa-arrow-down-short-wide text-primary mr-1"></i> Sort:
+                                </span>
+                                <button type="button" class="btn btn-sm btn-success font-weight-bold" id="liveSortPresentBtn" onclick="sortLiveRoster('present')" style="border-radius: 6px; font-size: 0.76rem; padding: 2px 8px;">
+                                    <i class="fas fa-circle-check mr-1"></i> Present First
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" id="liveSortAbsentBtn" onclick="sortLiveRoster('absent')" style="border-radius: 6px; font-size: 0.76rem; padding: 2px 8px;">
+                                    <i class="fas fa-circle-xmark mr-1"></i> Absent First
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" id="liveSortIdBtn" onclick="sortLiveRoster('id')" style="border-radius: 6px; font-size: 0.76rem; padding: 2px 8px;">
+                                    <i class="fas fa-arrow-down-1-9 mr-1"></i> ID
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="roster-scroll" id="fullRosterList">
                             <!-- Populated via JavaScript dynamically -->
                         </div>
@@ -895,6 +927,33 @@ async function loadClassRoster() {
     }
 }
 
+let liveRosterSortMode = 'present'; // Default: Present First
+let liveRosterFilterMode = 'all';    // Default: All
+
+function sortLiveRoster(mode) {
+    liveRosterSortMode = mode;
+    const btnP = document.getElementById('liveSortPresentBtn');
+    const btnA = document.getElementById('liveSortAbsentBtn');
+    const btnId = document.getElementById('liveSortIdBtn');
+
+    if (btnP) btnP.className = mode === 'present' ? 'btn btn-sm btn-success font-weight-bold' : 'btn btn-sm btn-outline-success font-weight-bold';
+    if (btnA) btnA.className = mode === 'absent' ? 'btn btn-sm btn-danger font-weight-bold' : 'btn btn-sm btn-outline-danger font-weight-bold';
+    if (btnId) btnId.className = mode === 'id' ? 'btn btn-sm btn-secondary font-weight-bold' : 'btn btn-sm btn-outline-secondary font-weight-bold';
+
+    updateRosterUI();
+}
+
+function filterLiveRoster(mode, btn) {
+    liveRosterFilterMode = mode;
+    const group = btn ? btn.parentElement : null;
+    if (group) {
+        group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    }
+    if (btn) btn.classList.add('active');
+
+    updateRosterUI();
+}
+
 function updateRosterUI() {
     const studentList = Object.values(state.students);
     const total = studentList.length;
@@ -910,6 +969,14 @@ function updateRosterUI() {
     classRosterCountBadge.textContent = `${total} Students Enrolled`;
     attendanceRateBadge.textContent = `${rate}% Present`;
 
+    // Update filter toolbar badge counts
+    const fAll = document.getElementById('liveBtnCountAll');
+    const fP = document.getElementById('liveBtnCountPresent');
+    const fA = document.getElementById('liveBtnCountAbsent');
+    if (fAll) fAll.textContent = total;
+    if (fP) fP.textContent = presentCount;
+    if (fA) fA.textContent = absentCount;
+
     // Render Full Roster List
     fullRosterList.innerHTML = '';
     if (total === 0) {
@@ -917,15 +984,34 @@ function updateRosterUI() {
         return;
     }
 
-    // Sort students: Present students first, then Absent students
+    // Sort students based on liveRosterSortMode ('present', 'absent', 'id')
     studentList.sort((a, b) => {
-        if (a.status === 'Present' && b.status !== 'Present') return -1;
-        if (a.status !== 'Present' && b.status === 'Present') return 1;
-        return a.student_id.localeCompare(b.student_id, undefined, { numeric: true });
+        const isPA = a.status === 'Present';
+        const isPB = b.status === 'Present';
+        const idComp = (a.student_id || '').localeCompare(b.student_id || '', undefined, { numeric: true });
+
+        if (liveRosterSortMode === 'present') {
+            if (isPA && !isPB) return -1;
+            if (!isPA && isPB) return 1;
+            return idComp;
+        } else if (liveRosterSortMode === 'absent') {
+            if (!isPA && isPB) return -1;
+            if (isPA && !isPB) return 1;
+            return idComp;
+        } else {
+            return idComp;
+        }
     });
 
+    let renderedCount = 0;
     studentList.forEach(s => {
         const isPresent = s.status === 'Present';
+
+        // Apply filter mode
+        if (liveRosterFilterMode === 'present' && !isPresent) return;
+        if (liveRosterFilterMode === 'absent' && isPresent) return;
+
+        renderedCount++;
         const item = document.createElement('div');
         item.className = 'd-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white';
         item.innerHTML = `
@@ -944,6 +1030,10 @@ function updateRosterUI() {
         `;
         fullRosterList.appendChild(item);
     });
+
+    if (renderedCount === 0) {
+        fullRosterList.innerHTML = `<div class="text-center py-4 text-muted small">No ${liveRosterFilterMode} students in this class.</div>`;
+    }
 }
 
 function addActivityCard(student) {
