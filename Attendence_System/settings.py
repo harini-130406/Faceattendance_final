@@ -220,7 +220,8 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
 # Email Configuration (Password Reset & Security Alerts)
 # Outgoing mail delivered strictly from: proconnect795@gmail.com
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+# Uses SmartFailoverEmailBackend which supports Brevo HTTPS API (Port 443 - bypasses Railway port blocking) and SMTP
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'attendence_sys.email_backend.SmartFailoverEmailBackend')
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
@@ -235,6 +236,11 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER) or EM
 SERVER_EMAIL = os.environ.get('SERVER_EMAIL', EMAIL_HOST_USER) or EMAIL_HOST_USER
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 15))  # 15-second socket timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
+
+# Brevo API Configuration (HTTPS Port 443 - zero firewall blocks on Railway/cloud)
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
+BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', DEFAULT_FROM_EMAIL).strip()
+BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'Smart Attendance System').strip()
 
 
 # Django REST Framework Configuration

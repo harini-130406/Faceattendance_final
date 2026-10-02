@@ -50,13 +50,13 @@ class SmartFailoverEmailBackend(EmailBackend):
             return 0
 
         # Check for HTTPS Email API Keys (Bypasses Railway SMTP firewall on Port 443)
-        resend_key = os.environ.get('RESEND_API_KEY') or getattr(settings, 'RESEND_API_KEY', '')
         brevo_key = os.environ.get('BREVO_API_KEY') or getattr(settings, 'BREVO_API_KEY', '')
+        resend_key = os.environ.get('RESEND_API_KEY') or getattr(settings, 'RESEND_API_KEY', '')
 
-        if resend_key:
-            return self._send_via_resend(email_messages, resend_key.strip())
-        elif brevo_key:
+        if brevo_key:
             return self._send_via_brevo(email_messages, brevo_key.strip())
+        elif resend_key:
+            return self._send_via_resend(email_messages, resend_key.strip())
 
         # Fallback to standard SMTP
         return super().send_messages(email_messages)
@@ -126,6 +126,18 @@ class SmartFailoverEmailBackend(EmailBackend):
         num_sent = 0
         url = "https://api.brevo.com/v3/smtp/email"
         
+        default_sender = (
+            os.environ.get('BREVO_SENDER_EMAIL')
+            or getattr(settings, 'BREVO_SENDER_EMAIL', '')
+            or getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+            or os.environ.get('EMAIL_HOST_USER', '')
+            or 'proconnect795@gmail.com'
+        ).strip()
+        default_name = (
+            os.environ.get('BREVO_SENDER_NAME')
+            or "Smart Attendance System"
+        ).strip()
+
         for msg in email_messages:
             try:
                 html_body = None
@@ -135,13 +147,30 @@ class SmartFailoverEmailBackend(EmailBackend):
                             html_body = content
                             break
 
-                sender_email = os.environ.get('BREVO_SENDER_EMAIL') or '24z260@psgitech.ac.in'
+                sender_name = default_name
+                sender_email = default_sender
+
+                from_addr = (msg.from_email or '').strip()
+                if '<' in from_addr and '>' in from_addr:
+                    name_part = from_addr.split('<')[0].strip()
+                    email_part = from_addr.split('<')[1].replace('>', '').strip()
+                    if name_part:
+                        sender_name = name_part
+                    if email_part:
+                        sender_email = email_part
+                elif from_addr and '@' in from_addr:
+                    sender_email = from_addr
+
+                # Override with explicit Brevo sender email if configured in environment
+                if os.environ.get('BREVO_SENDER_EMAIL'):
+                    sender_email = os.environ.get('BREVO_SENDER_EMAIL').strip()
+
                 payload = {
                     "sender": {
-                        "name": "Smart Attendance System",
+                        "name": sender_name,
                         "email": sender_email
                     },
-                    "to": [{"email": addr} for addr in msg.to],
+                    "to": [{"email": addr.strip()} for addr in msg.to if addr.strip()],
                     "subject": msg.subject,
                     "textContent": msg.body or "",
                 }
@@ -160,7 +189,7 @@ class SmartFailoverEmailBackend(EmailBackend):
                     method="POST"
                 )
 
-                logger.info(f"[SmartFailoverEmail] Dispatching via Brevo HTTPS API to {msg.to}...")
+                logger.info(f"[SmartFailoverEmail] Dispatching via Brevo HTTPS API from {sender_email} to {msg.to}...")
                 with urllib.request.urlopen(req, timeout=self.timeout) as response:
                     res_body = response.read().decode('utf-8')
                     logger.info(f"[SmartFailoverEmail] Brevo API success: {res_body}")
@@ -173,7 +202,7 @@ class SmartFailoverEmailBackend(EmailBackend):
                     err_detail = str(http_err)
                 logger.error(f"[SmartFailoverEmail] Brevo API rejected: {err_detail}")
                 if not self.fail_silently:
-                    raise Exception(err_detail)
+                    raise Exception(f"Brevo API error: {err_detail}")
             except Exception as e:
                 logger.error(f"[SmartFailoverEmail] Brevo API error: {e}")
                 if not self.fail_silently:
