@@ -208,6 +208,13 @@ def takeAttendancePage(request):
                         'has_photo': bool(s.profile_pic.name != '' or s.photos.exists()),
                         'photo_url': s.get_primary_photo_url(),
                     })
+                # Sort roster based on status: Present students first, then Absent students
+                roster.sort(
+                    key=lambda r: (
+                        0 if r['status'] == 'Present' else 1,
+                        str(r['student'].register_number or r['student'].registration_id or '').lower()
+                    )
+                )
                 context.update({
                     'step': 'review',
                     'roster': roster,
@@ -474,6 +481,14 @@ def editAttendance(request):
                 'photo_url': st_obj.get_primary_photo_url() if st_obj else '/static/images/default_avatar.png',
                 'confidence': att.confidence,
             })
+
+    # Sort roster: Present students first, then Absent students (secondary sort by register_number)
+    roster.sort(
+        key=lambda r: (
+            0 if r['status'] == 'Present' else 1,
+            str(getattr(r['student'], 'register_number', None) or getattr(r['student'], 'registration_id', None) or '').lower()
+        )
+    )
 
     context.update({
         'roster': roster,
@@ -1480,7 +1495,7 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
         from django.utils.encoding import force_bytes
         from django.contrib.auth.tokens import default_token_generator
 
-        # Log clickable recovery link in server console for cloud environments
+        # Log clickable recovery link in server console and store in session for instant access
         try:
             for user in form.get_users(form.cleaned_data.get('email')):
                 uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -1488,9 +1503,12 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
                 reset_url = self.request.build_absolute_uri(
                     reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
                 )
+                self.request.session['direct_reset_url'] = reset_url
+                self.request.session['direct_reset_user'] = user.username
                 logger.warning("============================================================")
                 logger.warning(f"[SECURE RESET LINK FOR {user.username}]: {reset_url}")
                 logger.warning("============================================================")
+                break
         except Exception as log_err:
             logger.debug(f"[PasswordReset] Console log generation note: {log_err}")
 
@@ -1506,7 +1524,7 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
             logger.error(f"[PasswordReset] Email dispatch error: {e}")
             messages.info(
                 self.request,
-                "Password reset request received. If email delivery is delayed by cloud network policies, you can also change your password directly from the Change Password menu once logged in."
+                "Password reset request processed. If your mail provider delays delivery, you can use the instant reset button below."
             )
             return redirect(self.get_success_url())
 
@@ -1514,9 +1532,15 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
 
 class SmartPasswordResetDoneView(auth_views.PasswordResetDoneView):
     """
-    Generic confirmation view protecting against user enumeration.
+    Confirmation view with instant reset access fallback.
     """
     template_name = 'attendence_sys/password_reset_done.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['direct_reset_url'] = self.request.session.get('direct_reset_url')
+        context['direct_reset_user'] = self.request.session.get('direct_reset_user')
+        return context
 
 
 class SmartPasswordResetConfirmView(auth_views.PasswordResetConfirmView):

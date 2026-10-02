@@ -156,8 +156,29 @@
                 </div>
             </div>
 
+            <!-- Sort & Quick Filter Bar -->
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap: 10px;">
+                <div class="d-flex align-items-center" style="gap: 6px;">
+                    <span class="small font-weight-bold text-muted mr-1">
+                        <i class="fas fa-arrow-down-short-wide text-primary mr-1"></i> Sort Students:
+                    </span>
+                    <button type="button" class="btn btn-sm btn-success font-weight-bold" id="btnSortPresent" onclick="sortRoster('present')" style="border-radius: 8px;">
+                        <i class="fas fa-circle-check mr-1"></i> Present First
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" id="btnSortAbsent" onclick="sortRoster('absent')" style="border-radius: 8px;">
+                        <i class="fas fa-circle-xmark mr-1"></i> Absent First
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" id="btnSortId" onclick="sortRoster('id')" style="border-radius: 8px;">
+                        <i class="fas fa-arrow-down-1-9 mr-1"></i> ID
+                    </button>
+                </div>
+                <div class="small text-muted">
+                    <i class="fas fa-circle-info text-primary mr-1"></i> Students are pre-sorted with Present at the top.
+                </div>
+            </div>
+
             <div class="table-responsive">
-                <table class="table table-modern" style="font-size: 0.94rem;">
+                <table class="table table-modern" style="font-size: 0.94rem;" id="editRosterTable">
                     <thead>
                         <tr>
                             <th style="width: 70px;">Photo</th>
@@ -169,7 +190,7 @@
                     </thead>
                     <tbody>
                         {% for row in roster %}
-                        <tr id="row_{{ row.student.register_number|default:row.student.registration_id }}">
+                        <tr id="row_{{ row.student.register_number|default:row.student.registration_id }}" class="roster-row" data-status="{{ row.status|lower }}">
                             <input type="hidden" name="student_id" value="{{ row.student.register_number|default:row.student.registration_id }}">
                             <input type="hidden" name="status_{{ row.student.register_number|default:row.student.registration_id }}" id="status_input_{{ row.student.register_number|default:row.student.registration_id }}" value="{{ row.status }}">
 
@@ -283,6 +304,41 @@ function updateCounters() {
     var dispA = document.getElementById('displayAbsent');
     if (dispP) dispP.innerText = p;
     if (dispA) dispA.innerText = a;
+}
+
+function sortRoster(mode) {
+    const btnPresent = document.getElementById('btnSortPresent');
+    const btnAbsent = document.getElementById('btnSortAbsent');
+    const btnId = document.getElementById('btnSortId');
+
+    if (btnPresent) btnPresent.className = mode === 'present' ? 'btn btn-sm btn-success font-weight-bold' : 'btn btn-sm btn-outline-success font-weight-bold';
+    if (btnAbsent) btnAbsent.className = mode === 'absent' ? 'btn btn-sm btn-danger font-weight-bold' : 'btn btn-sm btn-outline-danger font-weight-bold';
+    if (btnId) btnId.className = mode === 'id' ? 'btn btn-sm btn-secondary font-weight-bold' : 'btn btn-sm btn-outline-secondary font-weight-bold';
+
+    const tbody = document.querySelector('#editRosterTable tbody');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr.roster-row'));
+    rows.sort(function(a, b) {
+        const statusA = (a.getAttribute('data-status') || '').toLowerCase();
+        const statusB = (b.getAttribute('data-status') || '').toLowerCase();
+        const idA = (a.id.replace('row_', '') || '').toLowerCase();
+        const idB = (b.id.replace('row_', '') || '').toLowerCase();
+
+        if (mode === 'present') {
+            if (statusA === 'present' && statusB !== 'present') return -1;
+            if (statusA !== 'present' && statusB === 'present') return 1;
+            return idA.localeCompare(idB, undefined, { numeric: true });
+        } else if (mode === 'absent') {
+            if (statusA === 'absent' && statusB !== 'absent') return -1;
+            if (statusA !== 'absent' && statusB === 'absent') return 1;
+            return idA.localeCompare(idB, undefined, { numeric: true });
+        } else {
+            return idA.localeCompare(idB, undefined, { numeric: true });
+        }
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
 }
 </script>
 {% endblock %}

@@ -917,6 +917,13 @@ function updateRosterUI() {
         return;
     }
 
+    // Sort students: Present students first, then Absent students
+    studentList.sort((a, b) => {
+        if (a.status === 'Present' && b.status !== 'Present') return -1;
+        if (a.status !== 'Present' && b.status === 'Present') return 1;
+        return a.student_id.localeCompare(b.student_id, undefined, { numeric: true });
+    });
+
     studentList.forEach(s => {
         const isPresent = s.status === 'Present';
         const item = document.createElement('div');

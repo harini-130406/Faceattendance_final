@@ -415,6 +415,14 @@ def process_multiple_classroom_images(classroom_image_sources, branch, year, sec
             'photo_url': s_data['photo_url'],
         })
 
+    # Sort roster based on status: Present students first, then Absent students (secondary sort by register_number)
+    student_results.sort(
+        key=lambda r: (
+            0 if r['status'] == 'Present' else 1,
+            str(r['student'].register_number or r['student'].registration_id or '').lower()
+        )
+    )
+
     present_count = sum(1 for r in student_results if r['status'] == 'Present')
     absent_count = len(student_results) - present_count
     attendance_rate = round((present_count / len(student_results) * 100), 1) if student_results else 0.0

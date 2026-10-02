@@ -467,19 +467,39 @@
         </div>
         {% endif %}
 
-        <!-- Filter bar for reviewing students -->
+        <!-- Filter & Sort bar for reviewing students -->
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap: 10px;">
-            <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn btn-outline-primary active font-weight-bold" onclick="filterRoster('all', this)">
-                    All Students (<span id="btnCountAll">{{ roster|length }}</span>)
-                </button>
-                <button type="button" class="btn btn-outline-success font-weight-bold" onclick="filterRoster('present', this)">
-                    Present Only (<span id="btnCountPresent">{{ present_count }}</span>)
-                </button>
-                <button type="button" class="btn btn-outline-danger font-weight-bold" onclick="filterRoster('absent', this)">
-                    Absent Only (<span id="btnCountAbsent">{{ absent_count }}</span>)
-                </button>
+            <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+                <!-- Filter Buttons -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active font-weight-bold" onclick="filterRoster('all', this)">
+                        All (<span id="btnCountAll">{{ roster|length }}</span>)
+                    </button>
+                    <button type="button" class="btn btn-outline-success font-weight-bold" onclick="filterRoster('present', this)">
+                        Present (<span id="btnCountPresent">{{ present_count }}</span>)
+                    </button>
+                    <button type="button" class="btn btn-outline-danger font-weight-bold" onclick="filterRoster('absent', this)">
+                        Absent (<span id="btnCountAbsent">{{ absent_count }}</span>)
+                    </button>
+                </div>
+
+                <!-- Sort Buttons -->
+                <div class="d-flex align-items-center" style="gap: 6px;">
+                    <span class="small font-weight-bold text-muted mr-1">
+                        <i class="fas fa-arrow-down-short-wide text-primary mr-1"></i> Sort:
+                    </span>
+                    <button type="button" class="btn btn-sm btn-success font-weight-bold" id="btnSortPresent" onclick="sortRoster('present')" style="border-radius: 8px;">
+                        <i class="fas fa-circle-check mr-1"></i> Present First
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold" id="btnSortAbsent" onclick="sortRoster('absent')" style="border-radius: 8px;">
+                        <i class="fas fa-circle-xmark mr-1"></i> Absent First
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" id="btnSortId" onclick="sortRoster('id')" style="border-radius: 8px;">
+                        <i class="fas fa-arrow-down-1-9 mr-1"></i> ID
+                    </button>
+                </div>
             </div>
+
             <div class="small text-muted">
                 <i class="fas fa-circle-info text-primary mr-1"></i> Click <strong>"Toggle Status"</strong> on any row to flip between Present and Absent.
             </div>
@@ -1055,6 +1075,41 @@ function filterRoster(filterType, btn) {
             row.style.display = 'none';
         }
     });
+}
+
+function sortRoster(mode) {
+    const btnPresent = document.getElementById('btnSortPresent');
+    const btnAbsent = document.getElementById('btnSortAbsent');
+    const btnId = document.getElementById('btnSortId');
+
+    if (btnPresent) btnPresent.className = mode === 'present' ? 'btn btn-sm btn-success font-weight-bold' : 'btn btn-sm btn-outline-success font-weight-bold';
+    if (btnAbsent) btnAbsent.className = mode === 'absent' ? 'btn btn-sm btn-danger font-weight-bold' : 'btn btn-sm btn-outline-danger font-weight-bold';
+    if (btnId) btnId.className = mode === 'id' ? 'btn btn-sm btn-secondary font-weight-bold' : 'btn btn-sm btn-outline-secondary font-weight-bold';
+
+    const tbody = document.querySelector('#saveAttendanceForm table tbody');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr.roster-row'));
+    rows.sort(function(a, b) {
+        const statusA = (a.getAttribute('data-status') || '').toLowerCase();
+        const statusB = (b.getAttribute('data-status') || '').toLowerCase();
+        const idA = (a.id.replace('row_', '') || '').toLowerCase();
+        const idB = (b.id.replace('row_', '') || '').toLowerCase();
+
+        if (mode === 'present') {
+            if (statusA === 'present' && statusB !== 'present') return -1;
+            if (statusA !== 'present' && statusB === 'present') return 1;
+            return idA.localeCompare(idB, undefined, { numeric: true });
+        } else if (mode === 'absent') {
+            if (statusA === 'absent' && statusB !== 'absent') return -1;
+            if (statusA !== 'absent' && statusB === 'absent') return 1;
+            return idA.localeCompare(idB, undefined, { numeric: true });
+        } else {
+            return idA.localeCompare(idB, undefined, { numeric: true });
+        }
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
 }
 
 // High-Speed AI Face Scanning Overlay Controller

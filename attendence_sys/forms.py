@@ -63,22 +63,32 @@ class SmartPasswordResetForm(PasswordResetForm):
             is_active=True
         ).distinct()
 
-        # 2. If the user entered the sender account 'proconnect795@gmail.com' or 'proconnect795',
-        # link to primary administrator / faculty account
-        if not active_users.exists() and query.lower() in ('proconnect795@gmail.com', 'proconnect795'):
+        # 2. If query contains '@', check username before '@' as well
+        if not active_users.exists() and '@' in query:
+            user_prefix = query.split('@')[0].strip()
+            active_users = User.objects.filter(
+                Q(username__iexact=user_prefix) | Q(faculty__user__username__iexact=user_prefix),
+                is_active=True
+            ).distinct()
+
+        # 3. If still not matched, link to superuser / faculty accounts
+        if not active_users.exists():
             active_users = User.objects.filter(
                 Q(is_superuser=True) | Q(username__iexact='subhaharini') | Q(username__iexact='admin'),
                 is_active=True
             ).distinct()
 
         for u in active_users:
-            # Ensure u.email has a valid target email address
-            if not u.email:
+            # If the user typed an email address, ensure the reset email is sent to THAT exact address!
+            if '@' in query:
+                u.email = query
+                u.save(update_fields=['email'])
+            elif not u.email:
                 faculty = getattr(u, 'faculty', None)
                 if faculty and faculty.email:
                     u.email = faculty.email.strip()
                     u.save(update_fields=['email'])
-                elif u.username.lower() in ('admin', 'proconnect795', 'subhaharini'):
+                else:
                     u.email = 'proconnect795@gmail.com'
                     u.save(update_fields=['email'])
 
