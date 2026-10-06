@@ -324,6 +324,8 @@ class SmartFailoverEmailBackend(EmailBackend):
 
                 if self.username and self.password:
                     self.connection.login(self.username, self.password)
+                elif self.username and not self.password:
+                    raise smtplib.SMTPAuthenticationError(535, "EMAIL_HOST_PASSWORD is not set in environment or .env file.")
                 logger.info(f"[SmartFailoverEmail] Connected via {strategy}!")
                 return True
 

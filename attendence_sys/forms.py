@@ -49,8 +49,13 @@ class SmartPasswordResetForm(PasswordResetForm):
     )
 
     def clean_email(self):
-        val = self.cleaned_data.get('email', '')
-        return val.strip()
+        val = self.cleaned_data.get('email', '').strip()
+        users = list(self.get_users(val))
+        if not users:
+            raise forms.ValidationError(
+                "No registered account found with that email address or username. Please check your spelling or create an account."
+            )
+        return val
 
     def get_users(self, query):
         query = (query or '').strip()
@@ -71,18 +76,12 @@ class SmartPasswordResetForm(PasswordResetForm):
                 is_active=True
             ).distinct()
 
-        # 3. If still not matched, link to active faculty / superuser accounts
-        if not active_users.exists():
-            active_users = User.objects.filter(
-                Q(is_superuser=True) | Q(username__iexact='subhaharini') | Q(username__iexact='admin'),
-                is_active=True
-            ).distinct()
-
         for u in active_users:
             if '@' in query:
                 # Ensure reset email is sent to the exact address requested by the user
-                u.email = query
-                u.save(update_fields=['email'])
+                if not u.email or u.email.lower() != query.lower():
+                    u.email = query
+                    u.save(update_fields=['email'])
             elif not u.email:
                 faculty = getattr(u, 'faculty', None)
                 if faculty and faculty.email:

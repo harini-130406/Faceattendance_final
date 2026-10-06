@@ -26,7 +26,14 @@ from .models import Student, StudentPhoto, Attendence, AttendanceSession, Facult
 from .filters import AttendenceFilter
 from .google_drive_helper import fetch_drive_image_bytes, attach_drive_photo_to_student
 from .google_sheets_service import sync_google_sheet, generate_excel_template
-from .detector import process_classroom_image, process_multiple_classroom_images, get_student_face_encoding
+from .detector import (
+    process_classroom_image,
+    process_multiple_classroom_images,
+    get_student_face_encoding,
+    get_student_face_encodings,
+    preprocess_image_illumination,
+    calculate_calibrated_confidence,
+)
 try:
     import face_recognition
 except ImportError:
@@ -1257,6 +1264,8 @@ def liveScanFrame(request):
         tolerance = float(data.get('tolerance', 0.48))
     except (ValueError, TypeError):
         tolerance = 0.48
+    # Enforce safe upper bound on tolerance to eliminate loose false positives
+    tolerance = min(max(tolerance, 0.35), 0.48)
 
     # Decode base64 image data
     if ',' in image_data:
@@ -1281,6 +1290,8 @@ def liveScanFrame(request):
     else:
         proc_img = img_bgr
 
+    # Illumination preprocessing: CLAHE in LAB color space
+    proc_img = preprocess_image_illumination(proc_img)
     img_rgb = cv2.cvtColor(proc_img, cv2.COLOR_BGR2RGB)
 
     # 1. Detect faces and encodings
@@ -1300,25 +1311,25 @@ def liveScanFrame(request):
             section__iexact=section
         ).order_by('register_number', 'registration_id')
 
-    # Pre-extract cached student encodings
+    # Pre-extract cached student encodings (multi-vector per student)
     enrolled_list = []
     for s in students:
-        enc = get_student_face_encoding(s)
-        if enc is not None:
+        encs = get_student_face_encodings(s)
+        if encs:
             enrolled_list.append({
                 'id': s.id,
                 'student_id': s.register_number or s.registration_id or f"STU-{s.id}",
                 'name': s.name or s.firstname or 'Student',
-                'encoding': enc,
+                'encodings': encs,
                 'photo_url': s.get_primary_photo_url()
             })
 
-    face_boxes = []
-    matched_students = []
-    used_student_ids = set()
+    # 3. Match detected faces against enrolled students with margin & ambiguity rejection
+    # Candidate matches: list of (face_idx, student_info, best_d, margin)
+    candidate_matches = []
+    face_details = []
 
-    # 3. Match detected faces against enrolled students
-    for loc, face_enc in zip(detected_locations, detected_encodings):
+    for f_idx, (loc, face_enc) in enumerate(zip(detected_locations, detected_encodings)):
         top, right, bottom, left = loc
         # Scale back to original frame dimensions
         if scale != 1.0:
@@ -1327,43 +1338,84 @@ def liveScanFrame(request):
             bottom = int(round(bottom / scale))
             left = int(round(left / scale))
 
-        best_student = None
-        min_dist = 1.0
+        face_details.append({
+            'box': {'top': top, 'right': right, 'bottom': bottom, 'left': left},
+            'face_enc': face_enc
+        })
 
+        if not enrolled_list:
+            continue
+
+        student_distances = []
         for s_info in enrolled_list:
-            if s_info['id'] in used_student_ids:
-                continue
-            dist = float(face_recognition.face_distance([s_info['encoding']], face_enc)[0])
-            if dist < min_dist and dist <= tolerance:
-                min_dist = dist
-                best_student = s_info
+            # Measure minimum distance across student's reference embeddings
+            dists = face_recognition.face_distance(s_info['encodings'], face_enc)
+            min_d = float(np.min(dists))
+            student_distances.append((min_d, s_info))
 
-        if best_student:
-            used_student_ids.add(best_student['id'])
-            confidence = round(max(0.0, (1.0 - min_dist) * 100), 1)
+        student_distances.sort(key=lambda x: x[0])
+        best_d, best_s = student_distances[0]
+        second_d = student_distances[1][0] if len(student_distances) > 1 else 1.0
+        margin = second_d - best_d
+
+        # Strict ambiguity rejection: require distance <= tolerance
+        # and reject close runner-ups in the uncertain distance zone (> 0.40 with margin < 0.035)
+        if best_d <= tolerance:
+            if best_d > 0.40 and margin < 0.035:
+                # Ambiguous match: reject assignment rather than risking incorrect identity
+                continue
+            candidate_matches.append((f_idx, best_s, best_d, margin))
+
+    # Bipartite matching: sort candidate matches by best distance ascending
+    candidate_matches.sort(key=lambda x: x[2])
+    assigned_faces = {}
+    assigned_students = set()
+
+    for f_idx, s_info, best_d, margin in candidate_matches:
+        if f_idx in assigned_faces or s_info['id'] in assigned_students:
+            continue
+        assigned_faces[f_idx] = {
+            'student': s_info,
+            'distance': best_d,
+            'margin': margin,
+            'confidence': calculate_calibrated_confidence(best_d, margin)
+        }
+        assigned_students.add(s_info['id'])
+
+    face_boxes = []
+    matched_students = []
+
+    for f_idx, f_info in enumerate(face_details):
+        box = f_info['box']
+        if f_idx in assigned_faces:
+            match = assigned_faces[f_idx]
+            s_info = match['student']
+            conf = match['confidence']
             face_boxes.append({
-                'top': top,
-                'right': right,
-                'bottom': bottom,
-                'left': left,
+                'top': box['top'],
+                'right': box['right'],
+                'bottom': box['bottom'],
+                'left': box['left'],
                 'matched': True,
-                'name': best_student['name'],
-                'student_id': best_student['student_id'],
-                'confidence': confidence,
+                'name': s_info['name'],
+                'student_id': s_info['student_id'],
+                'confidence': conf,
+                'distance': round(match['distance'], 4),
+                'margin': round(match['margin'], 4),
             })
             matched_students.append({
-                'id': best_student['id'],
-                'student_id': best_student['student_id'],
-                'name': best_student['name'],
-                'confidence': confidence,
-                'photo_url': best_student['photo_url'],
+                'id': s_info['id'],
+                'student_id': s_info['student_id'],
+                'name': s_info['name'],
+                'confidence': conf,
+                'photo_url': s_info['photo_url'],
             })
         else:
             face_boxes.append({
-                'top': top,
-                'right': right,
-                'bottom': bottom,
-                'left': left,
+                'top': box['top'],
+                'right': box['right'],
+                'bottom': box['bottom'],
+                'left': box['left'],
                 'matched': False,
                 'name': 'Unrecognized Face',
                 'student_id': '',
@@ -1519,21 +1571,7 @@ class SmartPasswordResetView(auth_views.PasswordResetView):
             return redirect(self.get_success_url())
         except Exception as e:
             err_msg = str(e)
-            logger.warning(f"[PasswordReset] Email dispatch error: {err_msg}. Activating direct password reset redirect...")
-            
-            # Direct recovery fallback when external email providers fail or are suspended
-            from django.utils.http import urlsafe_base64_encode
-            from django.utils.encoding import force_bytes
-            from django.contrib.auth.tokens import default_token_generator
-            for user in form.get_users(target_input):
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
-                token = default_token_generator.make_token(user)
-                messages.info(
-                    self.request,
-                    f"Account verified for {user.username}. Please enter your new password below."
-                )
-                return redirect('password_reset_confirm', uidb64=uid, token=token)
-
+            logger.error(f"[PasswordReset] Email dispatch error: {err_msg}")
             messages.error(
                 self.request,
                 f"Unable to send reset email: {err_msg}. Please verify your email settings or connection."

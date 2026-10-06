@@ -485,6 +485,8 @@ const state = {
     selectedDeviceId: '',
     facingMode: 'user', // 'user' (front) or 'environment' (back)
     students: {}, // id -> { id, student_id, name, status: 'Absent'/'Present', confidence: 0, photo_url, lastSeen }
+    recognitionHits: {}, // student_id -> { count, lastSeenTs, bestConfidence }
+    CONFIRMATION_THRESHOLD: 3,
 };
 
 // Elements
@@ -740,7 +742,7 @@ async function captureAndScanFrame() {
         branch: selectBranch.value,
         year: selectYear.value,
         section: selectSection.value,
-        tolerance: 0.55
+        tolerance: 0.48
     };
 
     try {
@@ -783,9 +785,60 @@ function renderDetections(data) {
         faceDetectedBadge.style.display = 'none';
     }
 
+    const now = Date.now();
+    const currentFrameStudentIds = new Set();
     let newlyRecognized = false;
 
-    // Draw bounding boxes on overlay canvas
+    // 1. Multi-Frame Consensus Filter:
+    // In continuous auto-scan mode, require 3 confirmed hits before marking Present.
+    // In manual snapshot mode (single shot), 1 confident hit is accepted.
+    const isContinuousScan = state.isScanning;
+    const requiredHits = isContinuousScan ? state.CONFIRMATION_THRESHOLD : 1;
+
+    data.matched_students.forEach(match => {
+        const studentId = String(match.student_id);
+        currentFrameStudentIds.add(studentId);
+
+        if (state.students[studentId]) {
+            const stu = state.students[studentId];
+            if (stu.status === 'Present') {
+                // Already confirmed present: refresh confidence and last seen timestamp
+                if (match.confidence > stu.confidence) {
+                    stu.confidence = match.confidence;
+                }
+                stu.lastSeen = new Date().toLocaleTimeString();
+            } else {
+                // Student match in progress: accumulate temporal hits
+                if (!state.recognitionHits[studentId]) {
+                    state.recognitionHits[studentId] = { count: 0, lastSeenTs: now, bestConfidence: match.confidence };
+                }
+                const tracker = state.recognitionHits[studentId];
+                tracker.count += 1;
+                tracker.lastSeenTs = now;
+                tracker.bestConfidence = Math.max(tracker.bestConfidence, match.confidence);
+
+                if (tracker.count >= requiredHits) {
+                    stu.status = 'Present';
+                    stu.confidence = tracker.bestConfidence;
+                    stu.lastSeen = new Date().toLocaleTimeString();
+                    newlyRecognized = true;
+                    addActivityCard(stu);
+                }
+            }
+        }
+    });
+
+    // 2. Decay Tracker: clear unconfirmed hit counts if student disappears for > 4 seconds
+    Object.keys(state.recognitionHits).forEach(sId => {
+        if (!currentFrameStudentIds.has(sId)) {
+            const tracker = state.recognitionHits[sId];
+            if (now - tracker.lastSeenTs > 4000) {
+                delete state.recognitionHits[sId];
+            }
+        }
+    });
+
+    // 3. Draw bounding boxes on overlay canvas with multi-state visual indicators
     data.face_boxes.forEach(box => {
         let left = box.left * scaleX;
         let top = box.top * scaleY;
@@ -798,8 +851,23 @@ function renderDetections(data) {
             left = w - right;
         }
 
-        const isKnown = box.matched;
-        const color = isKnown ? '#10b981' : '#f59e0b'; // Emerald or Amber
+        const studentId = box.student_id ? String(box.student_id) : '';
+        const isMatched = box.matched && Boolean(studentId);
+        const isConfirmed = isMatched && state.students[studentId] && state.students[studentId].status === 'Present';
+        const tracker = isMatched ? state.recognitionHits[studentId] : null;
+        const currentHits = tracker ? tracker.count : 1;
+
+        let color, labelText;
+        if (isConfirmed) {
+            color = '#10b981'; // Confirmed Present: Emerald Green
+            labelText = `${box.name} (${box.confidence}%)`;
+        } else if (isMatched) {
+            color = '#06b6d4'; // Verifying: Sky Blue (Cyan)
+            labelText = `${box.name} (Verifying ${Math.min(currentHits, state.CONFIRMATION_THRESHOLD)}/${state.CONFIRMATION_THRESHOLD})`;
+        } else {
+            color = '#f59e0b'; // Unrecognized: Amber
+            labelText = 'Unrecognized Face';
+        }
 
         // Glowing rounded rectangle
         overlayCtx.save();
@@ -819,7 +887,6 @@ function renderDetections(data) {
         overlayCtx.stroke();
 
         // Label pill background
-        const labelText = isKnown ? `${box.name} (${box.confidence}%)` : 'Unrecognized Face';
         overlayCtx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
         const textMetrics = overlayCtx.measureText(labelText);
         const textW = textMetrics.width;
@@ -834,22 +901,6 @@ function renderDetections(data) {
         overlayCtx.fillStyle = '#0f172a';
         overlayCtx.fillText(labelText, left + 8, Math.max(16, top - 9));
         overlayCtx.restore();
-    });
-
-    // Mark matched students present in our state
-    data.matched_students.forEach(match => {
-        const studentId = String(match.student_id);
-        if (state.students[studentId]) {
-            const wasAbsent = state.students[studentId].status !== 'Present';
-            state.students[studentId].status = 'Present';
-            state.students[studentId].confidence = match.confidence;
-            state.students[studentId].lastSeen = new Date().toLocaleTimeString();
-
-            if (wasAbsent) {
-                newlyRecognized = true;
-                addActivityCard(state.students[studentId]);
-            }
-        }
     });
 
     if (newlyRecognized) {
@@ -901,6 +952,7 @@ async function loadClassRoster() {
 
         if (data.success) {
             state.students = {};
+            state.recognitionHits = {};
             data.roster.forEach(s => {
                 const sid = String(s.student_id);
                 state.students[sid] = {
